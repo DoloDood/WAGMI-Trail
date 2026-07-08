@@ -71,6 +71,28 @@
   .qty input{width:52px; text-align:center; padding:6px; border-radius:4px; border:1px solid rgba(43,35,24,.25); font-family:'IBM Plex Mono'; font-size:12px;}
 
   #travelScene{display:block; margin:0 auto 6px; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:#bfe3e0;}
+  .party-strip{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:6px 0 4px;}
+  .party-card{position:relative; text-align:center;}
+  .party-card img{width:56px; height:68px; border-radius:4px; border:2px solid rgba(43,35,24,.2);}
+  .party-card img.dead{opacity:.35; filter:grayscale(1);}
+  .party-card .pname{font-size:10px; margin-top:3px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .party-card .leader-star{position:absolute; top:-6px; left:50%; transform:translateX(-50%); color:var(--gold); font-size:13px;}
+  .bubble{
+    position:absolute; bottom:100%; left:50%; transform:translateX(-50%) translateY(6px) scale(.85);
+    background:var(--parchment); color:var(--ink); border:2px solid var(--ink); border-radius:6px;
+    padding:6px 9px; font-size:10.5px; font-family:'IBM Plex Mono',monospace; line-height:1.35;
+    width:130px; opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease; z-index:5;
+    box-shadow:0 3px 0 rgba(43,35,24,.25);
+  }
+  .bubble::after{
+    content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:var(--ink);
+  }
+  .bubble::before{
+    content:""; position:absolute; top:calc(100% - 2px); left:50%; transform:translateX(-50%);
+    border:5px solid transparent; border-top-color:var(--parchment); z-index:1;
+  }
+  .bubble.show{opacity:1; transform:translateX(-50%) translateY(0) scale(1);}
   .trailmap{position:relative; height:70px; margin:6px 0 20px;}
   .trailmap .track{position:absolute; top:32px; left:0; right:0; height:4px; background:rgba(43,35,24,.18); border-radius:2px;}
   .trailmap .fill{position:absolute; top:32px; left:0; height:4px; background:linear-gradient(90deg,var(--good),var(--chain-cyan)); border-radius:2px; transition:width .4s ease;}
@@ -116,6 +138,10 @@
   .final-score .num{font-family:'Fraunces',serif; font-size:52px; color:var(--gold); text-shadow:0 0 18px rgba(201,162,39,.4);}
   table.lb{width:100%; border-collapse:collapse; font-size:12px; margin-top:10px;}
   table.lb th, table.lb td{text-align:left; padding:6px 8px; border-bottom:1px solid rgba(43,35,24,.12);}
+  .lb-wrap{max-height:340px; overflow-y:auto; margin-top:10px; border-radius:6px;}
+  table.lb th{position:sticky; top:0; background:var(--parchment); z-index:1;}
+  tr.lb-mine{background:rgba(201,162,39,.22); font-weight:700;}
+  tr.lb-divider td{text-align:center; color:#6a5d44; font-size:11px; padding:5px; letter-spacing:.08em;}
   table.lb th{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#6a5d44;}
 
   .hide{display:none !important;}
@@ -156,6 +182,29 @@
     </div>
   </div>
 
+  <div id="screen-home" class="hide">
+    <div class="panel">
+      <div class="row between">
+        <div><span class="eyebrow">Homestead</span><h2 id="home-welcome">Welcome back</h2></div>
+        <div class="muted" style="text-align:right;">Trail Points<br><span id="home-points" style="font-family:'Fraunces',serif; font-size:22px; color:var(--gold); font-weight:600;">0</span></div>
+      </div>
+      <canvas id="wagonPreview" width="360" height="120" style="display:block; margin:10px auto; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:linear-gradient(180deg,#bfe3e0,#eaf6e6);"></canvas>
+
+      <h3 style="margin-top:18px;">Wagon Upgrades</h3>
+      <p class="muted">Spend Trail Points earned from finished runs. Upgrades apply to every future run automatically.</p>
+      <div id="upgrade-list" class="store-grid"></div>
+
+      <h3 style="margin-top:18px;">Daily Trail Tasks</h3>
+      <p class="muted" id="quest-reset-note">Resets once per day. Complete these during a run to earn bonus Trail Points.</p>
+      <div id="quest-list"></div>
+
+      <div class="row between" style="margin-top:20px; border-top:1px solid rgba(43,35,24,.15); padding-top:14px;">
+        <div class="muted" id="home-persist-note"></div>
+        <button class="btn chain" onclick="goToPartySelect()">Assemble Your Party →</button>
+      </div>
+    </div>
+  </div>
+
   <div id="screen-party" class="hide">
     <div class="panel">
       <span class="eyebrow">Step 2 of 4</span>
@@ -192,7 +241,8 @@
         <div><span class="eyebrow">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
         <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
       </div>
-      <canvas id="travelScene" width="640" height="120"></canvas>
+      <div class="party-strip" id="party-strip"></div>
+      <canvas id="travelScene" width="640" height="90"></canvas>
       <div class="trailmap" id="trailmap"></div>
       <div class="stat-grid">
         <div class="stat-box"><div class="label">Distance</div><div class="value"><span id="stat-distance">0</span> / 2000mi</div></div>
@@ -225,13 +275,13 @@
       <span class="eyebrow" id="end-eyebrow">Journey Complete</span>
       <h2 id="end-title">You reached Diamond Acres</h2>
       <div class="final-score"><div class="num" id="final-score-num">0</div><div class="muted">Final Score</div></div>
+      <div class="muted" id="trail-points-earned" style="text-align:center; margin-bottom:8px;"></div>
       <div class="stat-grid" id="score-breakdown"></div>
       <div class="row" style="margin-top:14px;">
-        <input type="text" id="player-name" placeholder="Trail name for the leaderboard" maxlength="18">
-        <button class="btn chain" onclick="saveScore()">Save Score</button>
+        <div class="muted" id="save-status">Saving your score…</div>
         <button class="btn" onclick="resetGame()">Play Again</button>
       </div>
-      <table class="lb" id="leaderboard-table"></table>
+      <div class="lb-wrap"><table class="lb" id="leaderboard-table"></table></div>
     </div>
   </div>
 
@@ -822,6 +872,147 @@ async function connectWallet(){
 }
 
 /* ============================================================
+   HOME HUB — wagon upgrades + daily quests.
+   Signed-in players (Google) get progress saved to Supabase
+   (a new `player_profiles` table — see setup note below).
+   Guests get a session-only profile that resets on reload,
+   since there's no account to attach it to.
+   ============================================================ */
+const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null };
+let playerProfile = {...DEFAULT_PROFILE};
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+async function loadProfile(){
+  if(currentUser && currentUser.email){
+    const client = getSupabase();
+    if(client){
+      try{
+        const { data, error } = await client.from('player_profiles').select('*').eq('user_key', currentUser.email).maybeSingle();
+        if(error) throw error;
+        if(data){ playerProfile = data; }
+        else{
+          const fresh = {...DEFAULT_PROFILE, user_key: currentUser.email, username: currentUser.username};
+          const { data: inserted, error: insErr } = await client.from('player_profiles').insert(fresh).select().single();
+          if(insErr) throw insErr;
+          playerProfile = inserted;
+        }
+      }catch(e){ console.warn('Could not load profile from Supabase, using a local session profile', e); playerProfile = {...DEFAULT_PROFILE}; }
+    } else { playerProfile = {...DEFAULT_PROFILE}; }
+  } else {
+    playerProfile = {...DEFAULT_PROFILE};
+  }
+  const today = todayStr();
+  if(playerProfile.quest_date !== today){
+    playerProfile.quest_date = today;
+    playerProfile.quest_town_done = false;
+    playerProfile.quest_minigame_done = false;
+    playerProfile.quest_finish_done = false;
+    await saveProfile();
+  }
+}
+async function saveProfile(){
+  if(!(currentUser && currentUser.email)) return; // guests: session-only, nothing to persist
+  const client = getSupabase();
+  if(!client) return;
+  try{
+    await client.from('player_profiles').update({
+      trail_points: playerProfile.trail_points, oxen_tier: playerProfile.oxen_tier,
+      wheels_tier: playerProfile.wheels_tier, storage_tier: playerProfile.storage_tier,
+      quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
+      quest_finish_done: playerProfile.quest_finish_done, quest_date: playerProfile.quest_date,
+      username: currentUser.username,
+    }).eq('user_key', currentUser.email);
+  }catch(e){ console.warn('Could not save profile to Supabase', e); }
+}
+async function completeQuest(key, reward){
+  if(!playerProfile || playerProfile[key]) return;
+  playerProfile[key] = true;
+  playerProfile.trail_points = (playerProfile.trail_points||0) + reward;
+  await saveProfile();
+}
+
+async function goToHome(){
+  show('screen-home');
+  document.getElementById('home-welcome').textContent = `Welcome back, ${currentUser.username}`;
+  document.getElementById('home-persist-note').textContent = (currentUser && currentUser.email)
+    ? 'Progress saves to your account automatically.'
+    : "Playing as a guest — sign in with Google next time to keep your wagon upgrades and points.";
+  await loadProfile();
+  renderHome();
+}
+function renderHome(){
+  document.getElementById('home-points').textContent = (playerProfile.trail_points||0).toLocaleString();
+  drawWagonPreview();
+  renderUpgrades();
+  renderQuests();
+}
+
+const UPGRADE_COST = {1:150, 2:350};
+const UPGRADES = [
+  {key:'oxen_tier',    label:'Oxen Team',          desc:'More oxen pulling the wagon means a faster pace, every run.'},
+  {key:'wheels_tier',  label:'Reinforced Wheels',  desc:'Extra spare parts already loaded before you outfit.'},
+  {key:'storage_tier', label:'Storage Racks',      desc:'Extra food already loaded before you spend a cent outfitting.'},
+];
+function renderUpgrades(){
+  const el = document.getElementById('upgrade-list');
+  el.innerHTML = UPGRADES.map(u=>{
+    const tier = playerProfile[u.key]||1;
+    const maxed = tier>=3;
+    const cost = maxed?0:UPGRADE_COST[tier];
+    const canAfford = !maxed && (playerProfile.trail_points||0)>=cost;
+    return `<div class="item-name">${u.label} — Tier ${tier}/3<div class="item-price">${u.desc}</div></div>
+      <div></div>
+      <button class="btn small" ${(maxed||!canAfford)?'disabled':''} onclick="buyUpgrade('${u.key}')">${maxed?'Maxed':`Upgrade (${cost} pts)`}</button>
+      <div></div>`;
+  }).join('');
+}
+async function buyUpgrade(key){
+  const tier = playerProfile[key]||1;
+  if(tier>=3) return;
+  const cost = UPGRADE_COST[tier];
+  if((playerProfile.trail_points||0)<cost) return;
+  playerProfile.trail_points -= cost;
+  playerProfile[key] = tier+1;
+  await saveProfile();
+  renderHome();
+}
+
+const QUESTS = [
+  {key:'quest_town_done',     label:'Visit a Town',           desc:'Stop and trade at any town landmark during a run.', reward:20},
+  {key:'quest_minigame_done', label:'Win a Hunt or Catch',     desc:'Land at least one hit hunting, or one catch fishing.', reward:20},
+  {key:'quest_finish_done',   label:'Reach Diamond Acres',     desc:'Finish the trail in a single run.', reward:50},
+];
+function renderQuests(){
+  document.getElementById('quest-list').innerHTML = QUESTS.map(q=>{
+    const done = !!playerProfile[q.key];
+    return `<div class="row between" style="padding:8px 0; border-bottom:1px dashed rgba(43,35,24,.12);">
+      <div><b>${done?'✅':'⬜'} ${q.label}</b><div class="muted" style="font-size:11px;">${q.desc}</div></div>
+      <div class="muted">+${q.reward} pts</div>
+    </div>`;
+  }).join('');
+}
+
+function wagonPalette(){
+  const level = (playerProfile.oxen_tier||1)+(playerProfile.wheels_tier||1)+(playerProfile.storage_tier||1);
+  if(level>=7) return {canvasColor:'#fff3c4', trimColor:'#c9a227'};
+  if(level>=5) return {canvasColor:'#dff5f0', trimColor:'#2f6f66'};
+  return {canvasColor:'#f4ede0', trimColor:'#2b2318'};
+}
+function drawWagonPreview(){
+  const canvas = document.getElementById('wagonPreview');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w=canvas.width, h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const {canvasColor, trimColor} = wagonPalette();
+  const pal = {...WAGON_PAL, W:canvasColor, K:trimColor};
+  const oxenCount = 1 + (playerProfile.oxen_tier||1);
+  let ox = 50;
+  for(let i=0;i<oxenCount;i++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, ox, h*0.72, 4); ox += 32; }
+  drawSpriteCentered(ctx, WAGON_ROWS, pal, ox+38, h*0.58, 5.5);
+}
+
+/* ============================================================
    PARTY SELECT
    ============================================================ */
 function renderRoster(){
@@ -880,6 +1071,7 @@ const GOOGLE_CLIENT_ID = "8027673446-30g1k56bblsdcqk56ajid007fpm8d2tb.apps.googl
 let currentUser = null; // { email, name, picture, username }
 
 function goToLogin(){
+  if(currentUser){ goToHome(); return; }
   show('screen-login');
   startMusic();
   initGoogleSignIn();
@@ -914,12 +1106,12 @@ function confirmUsername(){
   if(!val) return;
   currentUser.username = val;
   showUserBadge();
-  goToPartySelect();
+  goToHome();
 }
 function skipLogin(){
   currentUser = { email:null, name:'Guest', picture:null, username:'Guest'+Math.floor(1000+Math.random()*9000) };
   showUserBadge();
-  goToPartySelect();
+  goToHome();
 }
 function showUserBadge(){
   const el = document.getElementById('user-badge');
@@ -1002,11 +1194,11 @@ function departTrail(){
 
   state = {
     day:1, distance:0,
-    food: 100 + outfitPurchases.food*50,
+    food: 100 + (playerProfile.storage_tier-1)*50 + outfitPurchases.food*50,
     cash: outfitBudget - cost,
     ammo: 40 + outfitPurchases.ammo*20,
-    parts: 1 + outfitPurchases.parts,
-    oxen: 2 + outfitPurchases.oxen,
+    parts: 1 + (playerProfile.wheels_tier-1) + outfitPurchases.parts,
+    oxen: 2 + (playerProfile.oxen_tier-1)*2 + outfitPurchases.oxen,
     clothingBonus: Math.min(3, outfitPurchases.clothing*0.5),
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
@@ -1018,8 +1210,10 @@ function departTrail(){
     logMsg(`${biomeCounts[sharedBiome]} party members share the ${sharedBiome} biome — passive bonus stacked.`, 'good');
   }
   show('screen-trail');
+  renderPartyStrip();
   renderTrail();
   startSceneLoop();
+  startBanterLoop();
 }
 
 function partyStat(key){
@@ -1034,7 +1228,7 @@ function partyStat(key){
    RENDER
    ============================================================ */
 function show(id){
-  ['screen-title','screen-login','screen-party','screen-outfit','screen-trail','screen-end'].forEach(s=>{
+  ['screen-title','screen-login','screen-home','screen-party','screen-outfit','screen-trail','screen-end'].forEach(s=>{
     document.getElementById(s).classList.toggle('hide', s!==id);
   });
 }
@@ -1152,9 +1346,12 @@ function drawTravelScene(traveling){
       wi++;
     });
   }
-  drawSpriteCentered(ctx, WAGON_ROWS, WAGON_PAL, 240, h*0.68+bob(5), 5);
-  drawSpriteCentered(ctx, OX_ROWS, OX_PAL, 330, h*0.8+bob(6), 4);
-  drawSpriteCentered(ctx, OX_ROWS, OX_PAL, 366, h*0.8+bob(7), 4);
+  const wp = wagonPalette();
+  const wagonPal = {...WAGON_PAL, W:wp.canvasColor, K:wp.trimColor};
+  drawSpriteCentered(ctx, WAGON_ROWS, wagonPal, 240, h*0.68+bob(5), 5);
+  const inTrailOxenCount = 1 + ((playerProfile && playerProfile.oxen_tier) || 1);
+  let oxX = 366;
+  for(let oi=0; oi<inTrailOxenCount; oi++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, oxX, h*0.8+bob(6+oi), 4); oxX += 34; }
 }
 
 function renderTrail(){
@@ -1178,6 +1375,11 @@ function renderTrail(){
   });
   map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
 
+  state.members.forEach((m,i)=>{
+    const img = document.getElementById('party-img-'+i);
+    if(img) img.classList.toggle('dead', !m.alive);
+  });
+
   const hb = document.getElementById('healthbars');
   hb.innerHTML = state.members.map(m=>{
     const pct2 = Math.max(0,m.health);
@@ -1194,6 +1396,63 @@ function renderTrail(){
   const logEl = document.getElementById('log');
   logEl.innerHTML = state.log.slice().reverse().map(l=>`<div class="${l.cls||''}">${l.text}</div>`).join('');
 }
+
+function renderPartyStrip(){
+  const el = document.getElementById('party-strip');
+  el.innerHTML = state.members.map((m,i)=>{
+    const imgSrc = m.image || m.pfp;
+    const pixelCls = m.image ? '' : 'pixel';
+    return `<div class="party-card" id="party-card-${i}">
+      ${m.id===state.leaderId?'<div class="leader-star">\u2605</div>':''}
+      <div class="bubble" id="bubble-${i}"></div>
+      <img class="${pixelCls}" id="party-img-${i}" src="${imgSrc}">
+      <div class="pname">${m.name}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   PARTY BANTER — procedural, context-aware dialogue in pixel
+   speech bubbles. Note: this is a curated line bank selected by
+   current scene context, not a live LLM call — a static site
+   with no backend can't safely hold an API key for that. Real
+   live-generated chat would need a small server-side proxy
+   (e.g. a Vercel function calling an LLM API) to keep a key
+   private; this gets the same "dynamic banter" feel without one.
+   ============================================================ */
+const BANTER_LINES = {
+  trail: ["Anyone else's feet numb yet?","Gas fees are lower than my morale right now.","I swear that hill wasn't there yesterday.","Diamond Acres better have decent wifi.","We should've minted more oxen.","This dust is really testing my paper hands.","Are we there yet? Asking for the whole party."],
+  river: ["Careful, don't let the wagon get liquidated.","I did NOT sign up for a cold plunge.","Current's stronger than my resolve.","Someone hold my Hand Item, I'm jumping in."],
+  town: ["Ooh, they take \u039e here?","Don't trust the guy selling 'guaranteed' routes.","I'm just here for the gossip, honestly.","Restock time — don't blame me if we're broke after."],
+  hazard: ["Not again!","Did anyone else feel that?","This trail has the worst uptime.","Someone check if the wagon's still solvent."],
+  plains: ["Dibs on whatever we catch.","Quiet — I'm locking in.","My aim's rusty, don't judge me.","This is the calm before the next rug."],
+  fork: ["Left or right, I trust the vibes.","Let's not overthink this one.","Majority rules, I guess.","Whichever way, I call shotgun."],
+  legendary: ["Wait... is that who I think it is?","Pinch me, this can't be real.","Legendary energy right there.","Okay THIS is going on the leaderboard story."],
+};
+let banterTimer = null;
+function startBanterLoop(){
+  clearInterval(banterTimer);
+  banterTimer = setInterval(()=>{ if(Math.random()<0.7) triggerBanter(); }, 9000);
+}
+function stopBanterLoop(){ clearInterval(banterTimer); }
+function triggerBanter(){
+  if(!state) return;
+  const aliveIdx = state.members.map((m,i)=>i).filter(i=>state.members[i].alive);
+  if(aliveIdx.length===0) return;
+  const idx = aliveIdx[Math.floor(Math.random()*aliveIdx.length)];
+  const pool = BANTER_LINES[state.sceneMode] || BANTER_LINES.trail;
+  const line = pool[Math.floor(Math.random()*pool.length)];
+  showBubble(idx, line);
+}
+function showBubble(idx, text){
+  const b = document.getElementById('bubble-'+idx);
+  if(!b) return;
+  b.textContent = text;
+  b.classList.add('show');
+  clearTimeout(b._hideTimer);
+  b._hideTimer = setTimeout(()=>{ b.classList.remove('show'); }, 4200);
+}
+
 function logMsg(text, cls){
   state.log.push({text:`Day ${state.day} — ${text}`, cls: cls==='bad'?'ev-bad':cls==='good'?'ev-good':cls==='chain'?'ev-chain':''});
 }
@@ -1325,12 +1584,13 @@ function huntAnytime(){
 let pendingLandmark = null;
 function triggerLandmark(lm){
   pendingLandmark = lm;
-  if(lm.type==='river'){ state.sceneMode='river'; openFishing(lm); }
-  else if(lm.type==='plains'){ state.sceneMode='plains'; openHunting(lm); }
-  else if(lm.type==='town'){ state.sceneMode='town'; openTown(lm); }
-  else if(lm.type==='fork'){ state.sceneMode='fork'; openFork(lm); }
+  if(lm.type==='river'){ state.sceneMode='river'; triggerBanter(); openFishing(lm); }
+  else if(lm.type==='plains'){ state.sceneMode='plains'; triggerBanter(); openHunting(lm); }
+  else if(lm.type==='town'){ state.sceneMode='town'; triggerBanter(); openTown(lm); }
+  else if(lm.type==='fork'){ state.sceneMode='fork'; triggerBanter(); openFork(lm); }
   else if(lm.type==='hazard'){
     state.sceneMode='hazard';
+    triggerBanter();
     const resist = partyStat('resist'), repair = partyStat('repair');
     const mitig = (resist+repair)/2;
     const dmg = Math.max(3, Math.round(14 - mitig*0.8));
@@ -1339,6 +1599,7 @@ function triggerLandmark(lm){
     setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
   } else if(lm.type==='legendary'){
     state.sceneMode='legendary';
+    triggerBanter();
     const ownsLegendary = state.members.some(m=>m.rarity==='Legendary');
     if(ownsLegendary){ logMsg(`${lm.name}: your legendary party member is recognized by the trail spirits — full party heal.`, 'chain'); state.members.forEach(m=>{ if(m.alive) m.health = 100; }); }
     else { state.food += 40; state.cash += 30; logMsg(`${lm.name}: a legendary 1/1 wanderer passes through camp and leaves a gift (+40 food, +30 \u039e).`, 'chain'); }
@@ -1377,6 +1638,7 @@ function leaveTown(){
   document.getElementById('modal-town').classList.add('hide');
   state.sceneMode='trail';
   logMsg(`${pendingLandmark.name}: restocked at the general store.`, 'good');
+  completeQuest('quest_town_done', 20);
   renderTrail();
 }
 
@@ -1484,6 +1746,7 @@ function endHunt(){
   const gain = Math.round(huntHits*12 + foodStat*4);
   state.food += gain;
   logMsg(`${pendingLandmark.name}: hunted ${huntHits} game (+${gain} food, Food stat ${foodStat.toFixed(1)}).`, 'good');
+  if(huntHits>0) completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
 
@@ -1532,6 +1795,7 @@ function endFishing(){
   const gain = Math.round(fishCatches*16 + riverStat*3);
   state.food += gain;
   logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 catches (+${gain} food, River stat ${riverStat.toFixed(1)}).`, 'good');
+  if(fishCatches>0) completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
 
@@ -1576,17 +1840,29 @@ function endRun(success){
     <div class="stat-box"><div class="label">Biome Stack ×</div><div class="value">×${stackMult.toFixed(2)}</div></div>
   `;
   window._lastScore = total;
-  const nameInput = document.getElementById('player-name');
-  if(currentUser && currentUser.username) nameInput.value = currentUser.username;
-  renderLeaderboard();
+  window._lastLeaderClass = state.leaderClass;
+  window._lastDays = state.day;
+  const pointsEarned = Math.max(5, Math.floor(total/500));
+  document.getElementById('trail-points-earned').textContent = `+${pointsEarned} Trail Points earned`;
+  (async()=>{
+    playerProfile.trail_points = (playerProfile.trail_points||0) + pointsEarned;
+    if(success) await completeQuest('quest_finish_done', 50);
+    await saveProfile();
+  })();
+  autoSaveAndRender();
   show('screen-end');
 }
 /* ============================================================
    LEADERBOARD — backed by Supabase (falls back to a local,
-   session-only list if Supabase is unreachable).
+   session-only list if Supabase is unreachable). Saves
+   automatically as soon as a run ends, no button needed.
+   Shows the top 100; if your run doesn't crack that list,
+   your score is still pinned at the bottom so you can see
+   where you'd land.
    ============================================================ */
 const SUPABASE_URL = "https://vguwodaovoqyljixtqbj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_4UVDseGkPFySm7y17y5pxQ_bk7utNIH";
+const LEADERBOARD_SIZE = 100;
 let supabaseClient = null;
 function getSupabase(){
   if(supabaseClient) return supabaseClient;
@@ -1596,27 +1872,30 @@ function getSupabase(){
   return supabaseClient;
 }
 
-async function saveScore(){
-  const name = document.getElementById('player-name').value.trim() || 'Anonymous Settler';
-  const saveBtn = document.querySelector('#screen-end .btn.chain');
-  saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+async function autoSaveAndRender(){
+  const statusEl = document.getElementById('save-status');
+  const name = (currentUser && currentUser.username) ? currentUser.username : 'Anonymous Settler';
   const client = getSupabase();
-  let savedRemotely = false;
+  window._lastSavedId = null;
   if(client){
     try{
-      const { error } = await client.from('leaderboard').insert({
-        username: name, score: window._lastScore, leader_class: state.leaderClass, days: state.day
-      });
+      const { data, error } = await client.from('leaderboard').insert({
+        username: name, score: window._lastScore, leader_class: window._lastLeaderClass, days: window._lastDays
+      }).select().single();
       if(error) throw error;
-      savedRemotely = true;
-    }catch(e){ console.warn('Supabase save failed, saving locally instead', e); }
+      window._lastSavedId = data.id;
+      statusEl.textContent = `Saved automatically as ${name}.`;
+    }catch(e){
+      console.warn('Supabase save failed, saving locally instead', e);
+      leaderboard.push({name, score:window._lastScore, cls:window._lastLeaderClass, day:window._lastDays, local:true});
+      leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,100);
+      statusEl.textContent = `Saved locally as ${name} (leaderboard server unreachable).`;
+    }
+  } else {
+    leaderboard.push({name, score:window._lastScore, cls:window._lastLeaderClass, day:window._lastDays, local:true});
+    leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,100);
+    statusEl.textContent = `Saved locally as ${name}.`;
   }
-  if(!savedRemotely){
-    leaderboard.push({name, score:window._lastScore, cls:state.leaderClass, day:state.day});
-    leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,10);
-  }
-  saveBtn.textContent = savedRemotely ? 'Saved ✓' : 'Saved (local only)';
-  document.getElementById('player-name').disabled = true;
   await renderLeaderboard();
 }
 
@@ -1625,26 +1904,38 @@ async function renderLeaderboard(){
   const client = getSupabase();
   if(client){
     try{
-      const { data, error } = await client.from('leaderboard').select('username,score,leader_class,days').order('score', { ascending:false }).limit(10);
+      const { data, error } = await client.from('leaderboard').select('id,username,score,leader_class,days').order('score', { ascending:false }).limit(LEADERBOARD_SIZE);
       if(error) throw error;
       if(!data || data.length===0){ t.innerHTML = '<tr><td class="muted">No scores saved yet — be the first!</td></tr>'; return; }
-      t.innerHTML = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
-        data.map((l,i)=>`<tr><td>${i+1}</td><td>${l.username}</td><td>${l.leader_class||''}</td><td>${l.days||''}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
+      let rowsHtml = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
+        data.map((l,i)=>`<tr class="${l.id===window._lastSavedId?'lb-mine':''}"><td>${i+1}</td><td>${l.username}</td><td>${l.leader_class||''}</td><td>${l.days||''}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
+      const madeTheList = window._lastSavedId!==null && data.some(l=>l.id===window._lastSavedId);
+      if(window._lastSavedId!==null && !madeTheList){
+        let rankLabel = '';
+        try{
+          const { count, error: countErr } = await client.from('leaderboard').select('*', { count:'exact', head:true }).gt('score', window._lastScore);
+          if(!countErr && typeof count==='number') rankLabel = ` (rank #${count+1})`;
+        }catch(e){ /* rank is a nice-to-have, skip silently on failure */ }
+        const name = (currentUser && currentUser.username) ? currentUser.username : 'Anonymous Settler';
+        rowsHtml += `<tr class="lb-divider"><td colspan="5">··· outside the top ${LEADERBOARD_SIZE}${rankLabel} ···</td></tr>`;
+        rowsHtml += `<tr class="lb-mine"><td>—</td><td>${name}</td><td>${window._lastLeaderClass||''}</td><td>${window._lastDays||''}</td><td>${window._lastScore.toLocaleString()}</td></tr>`;
+      }
+      t.innerHTML = rowsHtml;
       return;
     }catch(e){ console.warn('Could not load Supabase leaderboard, showing local fallback', e); }
   }
   if(leaderboard.length===0){ t.innerHTML = '<tr><td class="muted">No scores saved yet this session.</td></tr>'; return; }
   t.innerHTML = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
-    leaderboard.map((l,i)=>`<tr><td>${i+1}</td><td>${l.name}</td><td>${l.cls}</td><td>${l.day}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
+    leaderboard.map((l,i)=>`<tr class="${l.local && l.score===window._lastScore ? 'lb-mine':''}"><td>${i+1}</td><td>${l.name}</td><td>${l.cls}</td><td>${l.day}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
 }
 function resetGame(){
   stopSceneLoop();
-  selected=[]; leaderIdx=null; state=null; usingWallet=false; WALLET_ROSTER=[];
-  document.getElementById('wallet-status').textContent = "Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
-  document.getElementById('player-name').value=''; document.getElementById('player-name').disabled=false;
-  const saveBtn = document.querySelector('#screen-end .btn.chain');
-  saveBtn.disabled = false; saveBtn.textContent = 'Save Score';
-  if(currentUser){ goToPartySelect(); } else { show('screen-title'); }
+  stopBanterLoop();
+  selected=[]; leaderIdx=null; state=null;
+  if(!usingWallet){
+    document.getElementById('wallet-status').textContent = "Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
+  }
+  if(currentUser){ goToHome(); } else { show('screen-title'); }
 }
 
 show('screen-title');
