@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sixtyfour&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --trail-dusk:#16241a; --trail-forest:#233c28; --parchment:#f1e6c9; --parchment-dark:#e4d3a8;
@@ -123,6 +124,7 @@
 </head>
 <body>
 <button class="btn small" id="music-toggle-btn" onclick="toggleMusicButton()" style="position:fixed; top:14px; right:14px; z-index:200;">🔇 Music</button>
+<div id="user-badge" class="hide" style="position:fixed; top:14px; right:110px; z-index:200; font-family:'IBM Plex Mono',monospace; font-size:11px; background:rgba(0,0,0,.35); color:#eafffb; padding:8px 12px; border-radius:4px; border:1px solid var(--chain-cyan-dim);"></div>
 <div class="wrap">
 
   <div id="screen-title">
@@ -131,18 +133,35 @@
       <h1>WAGMI TRAIL</h1>
       <span class="glow">a metaverse crossing // acre.exe launched</span>
       <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across 2,000 chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, trade at the towns along the way, and put your score on the leaderboard.</p>
-      <button class="btn chain" onclick="goToPartySelect()">Assemble Your Party →</button>
+      <button class="btn chain" onclick="goToLogin()">Assemble Your Party →</button>
       <div style="margin-top:16px;"><a href="https://x.com/dolodood" target="_blank" rel="noopener noreferrer" style="color:var(--chain-cyan-dim); font-size:12px; text-decoration:none; letter-spacing:.05em;">Follow @dolodood on X →</a></div>
+    </div>
+  </div>
+
+  <div id="screen-login" class="hide">
+    <div class="panel" style="text-align:center; padding:44px 20px;">
+      <span class="eyebrow">Step 1 of 4</span>
+      <h2>Sign In</h2>
+      <p class="muted" style="max-width:420px; margin:8px auto 20px;">Sign in with Google and pick a username. This is what will show up on the leaderboard once it's live.</p>
+      <div id="google-signin-btn" style="display:flex; justify-content:center; margin:10px 0 6px;"></div>
+      <div id="username-step" class="hide" style="margin-top:14px;">
+        <p class="muted" id="signed-in-as"></p>
+        <div class="row" style="justify-content:center; margin-top:8px;">
+          <input type="text" id="username-input" placeholder="Choose a username" maxlength="20">
+          <button class="btn chain" onclick="confirmUsername()">Continue →</button>
+        </div>
+      </div>
+      <div style="margin-top:20px;"><button class="btn small" onclick="skipLogin()">Skip for now (play as Guest)</button></div>
     </div>
   </div>
 
   <div id="screen-party" class="hide">
     <div class="panel">
-      <span class="eyebrow">Step 1 of 3</span>
+      <span class="eyebrow">Step 2 of 4</span>
       <h2>Choose Your Party</h2>
       <p class="muted">Select exactly 4 Acres. Then tap "Set as Leader" on one — their Class sets your Score Multiplier (rarer Leader = bigger multiplier, but a smaller outfitting budget — same trade-off as a hard-mode profession).</p>
       <div class="row between" style="margin:10px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:5px;">
-        <div class="muted" id="wallet-status">Showing the demo roster. Connect a wallet to play with the Green Acres NFTs you actually hold.</div>
+        <div class="muted" id="wallet-status">Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.</div>
         <button class="btn small" id="connect-wallet-btn" onclick="connectWallet()">Connect Wallet</button>
       </div>
       <div class="row between" style="margin-top:10px;">
@@ -155,7 +174,7 @@
 
   <div id="screen-outfit" class="hide">
     <div class="panel">
-      <span class="eyebrow">Step 2 of 3</span>
+      <span class="eyebrow">Step 3 of 4</span>
       <h2>Outfit the Wagon</h2>
       <p class="muted" id="outfit-intro"></p>
       <div class="store-grid" id="outfit-store"></div>
@@ -501,26 +520,19 @@ const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
    ============================================================ */
 const TRAIL_GOAL = 2000;
 
-const ROSTER = [
-  {id:"#0231", name:"The Farmer",     cls:"Laborer",      rarity:"Rare",      mult:2,   biome:"Prairie",   food:9, combat:3, repair:5, trade:4, morale:6, perception:5, river:4, resist:6},
-  {id:"#0987", name:"The General",    cls:"Military",     rarity:"Epic",      mult:3,   biome:"Canyon",    food:3, combat:9, repair:3, trade:5, morale:5, perception:6, river:3, resist:5},
-  {id:"#1420", name:"The Bandit",     cls:"Outlaw",        rarity:"Uncommon",  mult:1.5, biome:"Factory",   food:5, combat:7, repair:3, trade:2, morale:4, perception:6, river:3, resist:4},
-  {id:"#0765", name:"The Judge",      cls:"Professional",  rarity:"Rare",      mult:2,   biome:"Welcome",   food:3, combat:4, repair:3, trade:9, morale:5, perception:6, river:3, resist:5},
-  {id:"#0333", name:"The Bartender",  cls:"Social",        rarity:"Common",    mult:1,   biome:"Homestead", food:4, combat:3, repair:3, trade:6, morale:9, perception:4, river:3, resist:4},
-  {id:"#1188", name:"The Sea Captain",cls:"Maritime",      rarity:"Epic",      mult:3,   biome:"Open Sky",  food:4, combat:5, repair:5, trade:5, morale:5, perception:6, river:9, resist:5},
-  {id:"#0456", name:"The Sheikh",     cls:"Wanderer",      rarity:"Rare",      mult:2,   biome:"Prairie",   food:5, combat:4, repair:3, trade:6, morale:5, perception:8, river:3, resist:7},
-  {id:"#0999", name:"The Constructor",cls:"Laborer",       rarity:"Common",    mult:1,   biome:"Factory",   food:6, combat:3, repair:7, trade:3, morale:4, perception:4, river:3, resist:5},
-  {id:"#0654", name:"The Scientist",  cls:"Professional",  rarity:"Uncommon",  mult:1.5, biome:"Canyon",    food:3, combat:3, repair:6, trade:6, morale:5, perception:7, river:3, resist:6},
-  {id:"#0210", name:"The Punk",       cls:"Outlaw",        rarity:"Common",    mult:1,   biome:"Welcome",   food:4, combat:6, repair:3, trade:2, morale:5, perception:5, river:3, resist:4},
-  {id:"#0888", name:"The Admiral",    cls:"Maritime",      rarity:"Rare",      mult:2,   biome:"Open Sky",  food:4, combat:6, repair:4, trade:5, morale:5, perception:6, river:8, resist:5},
-  {id:"#0345", name:"The Gentleman",  cls:"Professional",  rarity:"Uncommon",  mult:1.5, biome:"Homestead", food:3, combat:3, repair:4, trade:8, morale:6, perception:6, river:3, resist:5},
-  {id:"#0777", name:"The Postman",    cls:"Laborer",       rarity:"Common",    mult:1,   biome:"Factory",   food:5, combat:3, repair:7, trade:4, morale:4, perception:5, river:3, resist:5},
-  {id:"#0512", name:"The Strong Man", cls:"Laborer",       rarity:"Uncommon",  mult:1.5, biome:"Prairie",   food:7, combat:6, repair:4, trade:3, morale:5, perception:4, river:3, resist:6},
-  {id:"Patty", name:"Patty (1/1)",    cls:"Legendary",     rarity:"Legendary", mult:4,   biome:"Homestead", food:8, combat:8, repair:8, trade:8, morale:8, perception:8, river:8, resist:8},
-  {id:"Cooper", name:"Cooper (1/1)",  cls:"Legendary",     rarity:"Legendary", mult:4,   biome:"Canyon",    food:7, combat:7, repair:9, trade:7, morale:9, perception:7, river:7, resist:8},
+const FREE_ROSTER = [
+  {id:"F1", name:"Ragged Farmhand", cls:"Laborer",      rarity:"Common", mult:1, biome:"Prairie",   food:4, combat:2, repair:3, trade:2, morale:3, perception:2, river:2, resist:3},
+  {id:"F2", name:"Nervous Clerk",   cls:"Everyday",     rarity:"Common", mult:1, biome:"Welcome",   food:2, combat:2, repair:2, trade:3, morale:3, perception:3, river:2, resist:2},
+  {id:"F3", name:"Tired Wanderer",  cls:"Wanderer",     rarity:"Common", mult:1, biome:"Canyon",    food:2, combat:2, repair:2, trade:2, morale:3, perception:3, river:2, resist:3},
+  {id:"F4", name:"Green Recruit",   cls:"Military",     rarity:"Common", mult:1, biome:"Factory",   food:2, combat:4, repair:2, trade:2, morale:3, perception:2, river:2, resist:2},
+  {id:"F5", name:"Humble Bartender",cls:"Social",       rarity:"Common", mult:1, biome:"Homestead", food:2, combat:2, repair:2, trade:3, morale:5, perception:2, river:2, resist:2},
+  {id:"F6", name:"Rookie Deckhand", cls:"Maritime",     rarity:"Common", mult:1, biome:"Open Sky",  food:2, combat:2, repair:2, trade:2, morale:3, perception:2, river:4, resist:2},
+  {id:"F7", name:"Petty Thief",     cls:"Outlaw",       rarity:"Common", mult:1, biome:"Welcome",   food:2, combat:3, repair:2, trade:1, morale:3, perception:3, river:2, resist:2},
+  {id:"F8", name:"Junior Clerk",    cls:"Professional", rarity:"Common", mult:1, biome:"Homestead", food:2, combat:2, repair:2, trade:4, morale:3, perception:3, river:2, resist:2},
+  {id:"F9", name:"Weary Traveler",  cls:"Everyday",     rarity:"Common", mult:1, biome:"Prairie",   food:3, combat:2, repair:2, trade:2, morale:3, perception:2, river:2, resist:2},
+  {id:"F10",name:"Plain Settler",   cls:"Laborer",      rarity:"Common", mult:1, biome:"Factory",   food:3, combat:2, repair:3, trade:2, morale:3, perception:2, river:2, resist:2},
 ];
-ROSTER.sort((a,b)=> b.mult - a.mult || a.name.localeCompare(b.name));
-ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i); });
+FREE_ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i); });
 
 const LANDMARKS = [
   {mile:150,  name:"Mempool Marsh",         type:"river",     icon:"FISH"},
@@ -564,7 +576,7 @@ const NPC_QUOTES = [
 let selected = [], leaderIdx = null, state = null, leaderboard = [];
 let outfitBudget = 0;
 let usingWallet = false, WALLET_ROSTER = [];
-function getCurrentRoster(){ return (usingWallet && WALLET_ROSTER.length) ? WALLET_ROSTER : ROSTER; }
+function getCurrentRoster(){ return (usingWallet && WALLET_ROSTER.length) ? WALLET_ROSTER : FREE_ROSTER; }
 
 /* ============================================================
    ON-CHAIN TRAIT ENGINE — maps real Green Acres trait values
@@ -753,11 +765,11 @@ async function connectWallet(){
   if(!window.ethereum){
     const inIframe = window.top !== window.self;
     if(inIframe){
-      statusEl.textContent = "No wallet reachable — this looks like an embedded preview, and wallet extensions can't inject into a sandboxed iframe. Download this file and open it directly in your browser (ideally via a local server, e.g. 'python3 -m http.server') to connect. Showing the demo roster for now.";
+      statusEl.textContent = "No wallet reachable — this looks like an embedded preview, and wallet extensions can't inject into a sandboxed iframe. Download this file and open it directly in your browser (ideally via a local server, e.g. 'python3 -m http.server') to connect. Showing the free starter roster for now.";
     } else if(location.protocol === 'file:'){
-      statusEl.textContent = "No wallet reachable on a file:// page — most wallet extensions block that by default. Either enable \"Allow access to file URLs\" for your wallet extension, or serve this file locally (e.g. 'python3 -m http.server') and open it via http://localhost. Showing the demo roster for now.";
+      statusEl.textContent = "No wallet reachable on a file:// page — most wallet extensions block that by default. Either enable \"Allow access to file URLs\" for your wallet extension, or serve this file locally (e.g. 'python3 -m http.server') and open it via http://localhost. Showing the free starter roster for now.";
     } else {
-      statusEl.textContent = "No browser wallet detected — install MetaMask or a similar extension, unlock it, and try again. Showing the demo roster for now.";
+      statusEl.textContent = "No browser wallet detected — install MetaMask or a similar extension, unlock it, and try again. Showing the free starter roster for now.";
     }
     return;
   }
@@ -772,7 +784,7 @@ async function connectWallet(){
     const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
     const ids = await contract.tokensOfOwner(address);
     if(!ids || ids.length===0){
-      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — no Green Acres NFTs found in this wallet. Showing the demo roster.`;
+      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — no Green Acres NFTs found in this wallet. Showing the free starter roster.`;
       btn.disabled=false; btn.textContent="Connect Wallet"; return;
     }
     const capped = ids.slice(0, 100);
@@ -792,7 +804,7 @@ async function connectWallet(){
       results.forEach(r=>{ if(r.status==='fulfilled') fetched.push(r.value); else console.warn('Could not load a token', r.reason); });
     }
     if(fetched.length===0){
-      statusEl.textContent = "Connected, but couldn't load metadata for your Acres (network/IPFS gateway issue) — showing the demo roster.";
+      statusEl.textContent = "Connected, but couldn't load metadata for your Acres (network/IPFS gateway issue) — showing the free starter roster.";
       btn.disabled=false; btn.textContent="Connect Wallet"; return;
     }
     fetched.sort((a,b)=> b.mult - a.mult || a.id.localeCompare(b.id));
@@ -803,7 +815,7 @@ async function connectWallet(){
     renderRoster();
   }catch(err){
     console.error(err);
-    statusEl.textContent = "Wallet connection failed or was rejected — showing the demo roster.";
+    statusEl.textContent = "Wallet connection failed or was rejected — showing the free starter roster.";
   }
   btn.disabled=false; btn.textContent="Connect Wallet";
 }
@@ -852,7 +864,70 @@ function updatePartyUI(){
   document.getElementById('party-status').textContent = `Selected: ${selected.length} / 4  •  Leader: ${leaderIdx!==null?roster[leaderIdx].name:'none'}`;
   document.getElementById('confirm-party-btn').disabled = !(selected.length===4 && leaderIdx!==null);
 }
-function goToPartySelect(){ show('screen-party'); renderRoster(); startMusic(); }
+/* ============================================================
+   GOOGLE SIGN-IN + USERNAME
+   Real Google Identity Services sign-in. Requires a real OAuth
+   Client ID from Google Cloud Console (Credentials -> OAuth
+   Client ID -> Web application), with your deployed Vercel URL
+   added under Authorized JavaScript origins. Swap the placeholder
+   below for your real Client ID once you have one.
+   No backend yet, so identity + username live in this session
+   only — this lays the groundwork for the leaderboard, which
+   will need real persistence to save usernames across visits.
+   ============================================================ */
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+let currentUser = null; // { email, name, picture, username }
+
+function goToLogin(){
+  show('screen-login');
+  startMusic();
+  initGoogleSignIn();
+}
+function initGoogleSignIn(){
+  const btn = document.getElementById('google-signin-btn');
+  if(GOOGLE_CLIENT_ID.indexOf('YOUR_GOOGLE_CLIENT_ID')>=0){
+    btn.innerHTML = '<span class="muted">Google Sign-In needs a Client ID configured in the code — skip below for now.</span>';
+    return;
+  }
+  if(!window.google || !google.accounts || !google.accounts.id){
+    btn.innerHTML = '<span class="muted">Google Sign-In script did not load — check your connection, or skip below.</span>';
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+  google.accounts.id.renderButton(btn, { theme:'outline', size:'large', shape:'pill' });
+}
+function decodeJwt(token){
+  const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+  const json = decodeURIComponent(atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+  return JSON.parse(json);
+}
+function handleGoogleCredential(response){
+  const payload = decodeJwt(response.credential);
+  currentUser = { email: payload.email, name: payload.name, picture: payload.picture, username: null };
+  document.getElementById('signed-in-as').textContent = `Signed in as ${payload.name} (${payload.email})`;
+  document.getElementById('username-step').classList.remove('hide');
+  document.getElementById('username-input').value = (payload.name||'').split(' ')[0] || '';
+}
+function confirmUsername(){
+  const val = document.getElementById('username-input').value.trim();
+  if(!val) return;
+  currentUser.username = val;
+  showUserBadge();
+  goToPartySelect();
+}
+function skipLogin(){
+  currentUser = { email:null, name:'Guest', picture:null, username:'Guest'+Math.floor(1000+Math.random()*9000) };
+  showUserBadge();
+  goToPartySelect();
+}
+function showUserBadge(){
+  const el = document.getElementById('user-badge');
+  if(!currentUser) return;
+  el.textContent = `👤 ${currentUser.username}`;
+  el.classList.remove('hide');
+}
+
+function goToPartySelect(){ show('screen-party'); renderRoster(); }
 
 /* ============================================================
    OUTFITTING
@@ -958,7 +1033,7 @@ function partyStat(key){
    RENDER
    ============================================================ */
 function show(id){
-  ['screen-title','screen-party','screen-outfit','screen-trail','screen-end'].forEach(s=>{
+  ['screen-title','screen-login','screen-party','screen-outfit','screen-trail','screen-end'].forEach(s=>{
     document.getElementById(s).classList.toggle('hide', s!==id);
   });
 }
@@ -1500,6 +1575,8 @@ function endRun(success){
     <div class="stat-box"><div class="label">Biome Stack ×</div><div class="value">×${stackMult.toFixed(2)}</div></div>
   `;
   window._lastScore = total;
+  const nameInput = document.getElementById('player-name');
+  if(currentUser && currentUser.username) nameInput.value = currentUser.username;
   renderLeaderboard();
   show('screen-end');
 }
@@ -1520,10 +1597,10 @@ function renderLeaderboard(){
 function resetGame(){
   stopSceneLoop();
   selected=[]; leaderIdx=null; state=null; usingWallet=false; WALLET_ROSTER=[];
-  document.getElementById('wallet-status').textContent = "Showing the demo roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
+  document.getElementById('wallet-status').textContent = "Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
   document.getElementById('player-name').value=''; document.getElementById('player-name').disabled=false;
   document.querySelector('#screen-end .btn.chain').disabled = false;
-  show('screen-title');
+  if(currentUser){ goToPartySelect(); } else { show('screen-title'); }
 }
 
 show('screen-title');
