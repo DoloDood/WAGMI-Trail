@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sixtyfour&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --trail-dusk:#16241a; --trail-forest:#233c28; --parchment:#f1e6c9; --parchment-dark:#e4d3a8;
@@ -1580,16 +1581,58 @@ function endRun(success){
   renderLeaderboard();
   show('screen-end');
 }
-function saveScore(){
-  const name = document.getElementById('player-name').value.trim() || 'Anonymous Settler';
-  leaderboard.push({name, score:window._lastScore, cls:state.leaderClass, day:state.day});
-  leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,10);
-  renderLeaderboard();
-  document.getElementById('player-name').disabled = true;
-  document.querySelector('#screen-end .btn.chain').disabled = true;
+/* ============================================================
+   LEADERBOARD — backed by Supabase (falls back to a local,
+   session-only list if Supabase is unreachable).
+   ============================================================ */
+const SUPABASE_URL = "https://vguwodaovoqyljixtqbj.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_4UVDseGkPFySm7y17y5pxQ_bk7utNIH";
+let supabaseClient = null;
+function getSupabase(){
+  if(supabaseClient) return supabaseClient;
+  if(window.supabase && window.supabase.createClient){
+    try{ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.warn('Supabase init failed', e); }
+  }
+  return supabaseClient;
 }
-function renderLeaderboard(){
+
+async function saveScore(){
+  const name = document.getElementById('player-name').value.trim() || 'Anonymous Settler';
+  const saveBtn = document.querySelector('#screen-end .btn.chain');
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+  const client = getSupabase();
+  let savedRemotely = false;
+  if(client){
+    try{
+      const { error } = await client.from('leaderboard').insert({
+        username: name, score: window._lastScore, leader_class: state.leaderClass, days: state.day
+      });
+      if(error) throw error;
+      savedRemotely = true;
+    }catch(e){ console.warn('Supabase save failed, saving locally instead', e); }
+  }
+  if(!savedRemotely){
+    leaderboard.push({name, score:window._lastScore, cls:state.leaderClass, day:state.day});
+    leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,10);
+  }
+  saveBtn.textContent = savedRemotely ? 'Saved ✓' : 'Saved (local only)';
+  document.getElementById('player-name').disabled = true;
+  await renderLeaderboard();
+}
+
+async function renderLeaderboard(){
   const t = document.getElementById('leaderboard-table');
+  const client = getSupabase();
+  if(client){
+    try{
+      const { data, error } = await client.from('leaderboard').select('username,score,leader_class,days').order('score', { ascending:false }).limit(10);
+      if(error) throw error;
+      if(!data || data.length===0){ t.innerHTML = '<tr><td class="muted">No scores saved yet — be the first!</td></tr>'; return; }
+      t.innerHTML = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
+        data.map((l,i)=>`<tr><td>${i+1}</td><td>${l.username}</td><td>${l.leader_class||''}</td><td>${l.days||''}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
+      return;
+    }catch(e){ console.warn('Could not load Supabase leaderboard, showing local fallback', e); }
+  }
   if(leaderboard.length===0){ t.innerHTML = '<tr><td class="muted">No scores saved yet this session.</td></tr>'; return; }
   t.innerHTML = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
     leaderboard.map((l,i)=>`<tr><td>${i+1}</td><td>${l.name}</td><td>${l.cls}</td><td>${l.day}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
@@ -1599,7 +1642,8 @@ function resetGame(){
   selected=[]; leaderIdx=null; state=null; usingWallet=false; WALLET_ROSTER=[];
   document.getElementById('wallet-status').textContent = "Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
   document.getElementById('player-name').value=''; document.getElementById('player-name').disabled=false;
-  document.querySelector('#screen-end .btn.chain').disabled = false;
+  const saveBtn = document.querySelector('#screen-end .btn.chain');
+  saveBtn.disabled = false; saveBtn.textContent = 'Save Score';
   if(currentUser){ goToPartySelect(); } else { show('screen-title'); }
 }
 
