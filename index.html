@@ -629,16 +629,53 @@ const BG_MAP = invert({
   Factory:["Factory Sea","Factory Lilly","Factory Desert","Factory Turquoise","Factory Rose","Factory Green"],
   "Open Sky":["High Noon","Bright Sun"],
 });
-const CLASS_MULT = {Military:2, Maritime:2, Professional:1.8, Outlaw:1.5, Wanderer:1.5, Laborer:1.3, Social:1.3, Everyday:1, Legendary:4};
+const LEGENDARY_NAMES = ["Joe","Eric","Jim","Ron","Mike","Steve","Her","Bob","Clement","Craig","Travis","Earl","Bill","Jack","Patty","Phil","Henry","Ed","Cooper"];
+function detectLegendaryName(meta, attrs){
+  if(meta && meta.name){
+    const nm = String(meta.name).trim();
+    for(const ln of LEGENDARY_NAMES){
+      if(nm===ln || nm.endsWith(' '+ln) || nm.endsWith('#'+ln) || nm.includes(ln+' ') || nm.includes(' '+ln)) return ln;
+    }
+  }
+  if(attrs){
+    const oneOfOneAttr = attrs.find(x=> /1\s*\/\s*1|1\s*of\s*1/i.test(x.trait_type||''));
+    if(oneOfOneAttr && oneOfOneAttr.value) return oneOfOneAttr.value;
+    const nameAttr = attrs.find(x=> LEGENDARY_NAMES.includes(x.value));
+    if(nameAttr) return nameAttr.value;
+  }
+  return null;
+}
 
-function computeMemberFromAttributes(tokenId, attrs, image, idx){
-  const get = t=>{ const a=(attrs||[]).find(x=>x.trait_type===t); return a?a.value:null; };
-  const bodyB = BODY_MAP[get('Body')] || 'Everyday';
-  const handB = HAND_MAP[get('Hand Item')] || 'Comfort';
-  const headB = HEAD_MAP[get('Head')] || 'Cosmetic';
-  const eyesB = EYES_MAP[get('Eyes')] || 'Morale';
-  const faceB = FACE_MAP[get('Face')] || 'FacialHair';
-  const biome = BG_MAP[get('Background')] || 'Homestead';
+// Real, published per-value mint counts for the collection (3,981 regular
+// tokens + 19 named 1/1s = 4,000 total supply). Rarity score is the
+// standard trait-rarity formula: sum of (total / count) across a token's
+// traits, so genuinely scarce individual values push the score up no
+// matter which category they're in.
+const TOTAL_REGULAR_SUPPLY = 3981;
+const BACKGROUND_COUNTS = {"High Noon":20,"Bright Sun":20,"Green Acres Sea":40,"Green Acres Rose":40,"Green Acres Lilly":40,"Green Acres Turquoise":40,"Green Acres Desert":40,"Green Acres OG":40,"Welcome Lilly":154,"Prairie Turquoise":154,"Factory Sea":154,"Welcome Sea":154,"Canyon Rose":154,"Prairie Lilly":154,"Canyon Lilly":154,"Factory Lilly":154,"Factory Desert":154,"Welcome Green":154,"Prairie Desert":154,"Canyon Turquoise":154,"Factory Turquoise":154,"Prairie Green":154,"Prairie Rose":154,"Welcome Rose":154,"Canyon Desert":154,"Welcome Turquoise":154,"Canyon Green":154,"Welcome Desert":155,"Factory Rose":155,"Prairie Sea":155,"Factory Green":155,"Canyon Sea":155};
+const BODY_COUNTS = {"Farmer":16,"Prisoner":20,"Constructor":20,"Bartender":20,"Accountant":26,"Bandit":26,"Cute Jumper":39,"Bedouin Robe":40,"Comfy Hoodie":40,"Tank Top":40,"Sexy & She Knows It":40,"Beach Day":40,"Sheikh Robe":40,"WW1 Soldier":60,"WW2 Soldier":60,"Pilot":157,"Tyrolean":157,"Punk":157,"Sea Captain":157,"Don't Worry":157,"Canadian Police":157,"Strong Man":157,"Best Man":157,"Leather Jacket":157,"Admiral":157,"Grave Digger":157,"Blue Collar":157,"Brown Coat":157,"Scientist":157,"Flannel":157,"Sweater Weather":157,"Gentleman":157,"White Tank":157,"General":157,"Train Conductor":157,"Postman":157,"Judge":157};
+const EYES_COUNTS = {"Dead":16,"Snake Eyes":20,"Black Squares":20,"Demon":20,"Cross Eyes":30,"Blind":30,"Monocle":40,"Victorian Sunnies":40,"Gold Sunnies":40,"Tense":109,"In Their Feels":109,"Bloodshot":109,"Tired":109,"Gray Brows":109,"Crazy":109,"Doubtful":109,"Annoyed":109,"Awake":109,"Sus":109,"Scarred":109,"Closed":109,"Sad":109,"Puppy Eyes":109,"Vert":109,"Scared":110,"Wink":110,"Angry":110,"Large Teal":110,"Tiny":110,"Squint":110,"Scowl":110,"Deep Blue":110,"Misfit":110,"One Eye Blind":110,"Happy":110,"Blue":110,"Cult Leader":110,"Bandit":110,"Nomad":110,"Cat":110,"Dove":110,"Eye Patch":110,"Wide Green":110};
+const FACE_COUNTS = {"Candy Girl":22,"Cheeky Girl":22,"Punk Girl":22,"Bubbles":22,"Ahhhhh":22,"Elven Queen":22,"Girl Next Door":22,"Her Kiss":22,"Smiling Queen":23,"Prisoner":114,"Thick Stache":114,"Scream":114,"Slick Beard":114,"Trim and Proper":114,"Shocked":114,"Strong Man":114,"Dreaded Beard":114,"Gold Beard":114,"Goatie":114,"Annoyed":114,"French Fork":114,"Rollie Stache":114,"Braided Beard":115,"Beard Only":115,"Karate":115,"Fu Manchu":115,"Normie":115,"Prospector":115,"Tongue Out":115,"Real Man Stache":115,"Mutton Chops":115,"Teeth Check":115,"Bandit":115,"Teardrop Tat":115,"Nomad":115,"Scarred":115,"Old and Gray":115,"Grey Burns":115,"White Goatie":115,"Short-White Beard":115,"Pirate":115,"Double Braids":115};
+const GENDER_COUNTS = {"Female":199,"Male":3782};
+const HAND_COUNTS = {"Corona":16,"Black Sheep":20,"Baby Monkey":20,"Parrot":30,"Mouse":30,"Goat":40,"Dog":40,"Cat":40,"Chicken":40,"Duckling":40,"Frog":40,"Piglet":50,"Calf":50,"Amber":60,"Pearl":60,"Sapphire":60,"Emerald":60,"Ruby":60,"Diamond":60,"Cavalry Sword":73,"Bottle":73,"Dumbbell":73,"Fourche":73,"Cup":73,"Popsicle":73,"Revolver":73,"WW1 Rifle":73,"Square Up":73,"Microphone":73,"Clean":73,"Brush":73,"WW1 Grenade":73,"Shovel":73,"Pickaxe":73,"Whip":73,"Apple":73,"Hammer":74,"Blunt":74,"Roll of Parchment":74,"Hand Axe":74,"Torch":74,"Bouquet":74,"Whiskey":74,"Big Red Button":74,"Sicle":74,"Cane":74,"Tesla":74,"Beads":74,"Lighter":74,"Test Tube":74,"Combat Knife":74,"Cutlass":74,"Meat On A Stick":74,"Coffee":74,"Envelope":74,"Dynamite":74,"WW2 Rifle":74,"Chalice":74,"Notepad":74,"Pipe":74,"Gavel":74,"Skull":74};
+const HEAD_COUNTS = {"Bald II":20,"Bald I":20,"Diver":20,"Beekeeper":20,"Chill Beanie":22,"White Braids":22,"Purple Double Buns":22,"The Bob":22,"Ski Goggles":22,"Pretty In Pink":22,"The Harley Quinn":22,"Blue Pig Tails":22,"Cowgirl Hat":23,"Bear":26,"Raccoon Cap":26,"Fox":26,"Pilot":120,"Straw Hat":120,"Prospector":120,"Scientist":120,"Siberian Wool":120,"Miner":120,"The Judge":121,"Prisoner":121,"Pilgrim":121,"WW2 Helmet":121,"Tyrolean":121,"Chef":121,"Cowboy Hat":121,"Canadian Police":121,"Mr. T":121,"Square Crown":121,"Painter":121,"Dreads":121,"Keffiyeh":121,"Fedora":121,"Bandit":121,"Nomad":121,"Pompadour":121,"Slick Back Hair":121,"General":121,"Fez":121,"Farmer":121,"Sheikh":121,"Postman":121,"Top Hat":121};
+
+function rarityComponent(counts, value){
+  if(!value || !counts[value]) return TOTAL_REGULAR_SUPPLY/200; // neutral fallback for an unrecognized value
+  return TOTAL_REGULAR_SUPPLY / counts[value];
+}
+
+function computeMemberFromAttributes(tokenId, meta, idx){
+  const attrs = (meta && meta.attributes) || [];
+  const get = t=>{ const a=attrs.find(x=>x.trait_type===t); return a?a.value:null; };
+  const legendaryName = detectLegendaryName(meta, attrs);
+  const bodyVal = get('Body'), handVal = get('Hand Item'), headVal = get('Head'), eyesVal = get('Eyes'), faceVal = get('Face'), bgVal = get('Background'), genderVal = get('Gender');
+  const bodyB = BODY_MAP[bodyVal] || 'Everyday';
+  const handB = HAND_MAP[handVal] || 'Comfort';
+  const headB = HEAD_MAP[headVal] || 'Cosmetic';
+  const eyesB = EYES_MAP[eyesVal] || 'Morale';
+  const faceB = FACE_MAP[faceVal] || 'FacialHair';
+  const biome = BG_MAP[bgVal] || 'Homestead';
 
   let food=3, combat=3, repair=3, trade=3, morale=5, perception=3, river=3, resist=3;
   if(bodyB==='Laborer') food+=4;
@@ -673,15 +710,29 @@ function computeMemberFromAttributes(tokenId, attrs, image, idx){
   if(biome==='Homestead') morale+=2;
 
   const clamp = v=>Math.max(0, Math.min(10, Math.round(v)));
-  const mult = CLASS_MULT[bodyB] || 1;
+  let rarity, mult, rarityScore=null;
+  if(legendaryName){ rarity='Legendary'; mult=4; }
+  else{
+    rarityScore = rarityComponent(BODY_COUNTS,bodyVal) + rarityComponent(HAND_COUNTS,handVal) + rarityComponent(HEAD_COUNTS,headVal)
+                + rarityComponent(EYES_COUNTS,eyesVal) + rarityComponent(FACE_COUNTS,faceVal) + rarityComponent(BACKGROUND_COUNTS,bgVal)
+                + rarityComponent(GENDER_COUNTS,genderVal);
+    if(rarityScore>=420){ rarity='Epic'; mult=3; }
+    else if(rarityScore>=335){ rarity='Rare'; mult=2; }
+    else if(rarityScore>=245){ rarity='Uncommon'; mult=1.5; }
+    else { rarity='Common'; mult=1; }
+  }
+
+  const statFloor = legendaryName ? 7 : 0;
   const member = {
-    id:"#"+tokenId, name:"Green Acres #"+tokenId, cls:bodyB, biome:biome,
-    rarity: mult>=2?'Rare':(mult>=1.5?'Uncommon':'Common'), mult,
-    food:clamp(food), combat:clamp(combat), repair:clamp(repair), trade:clamp(trade),
-    morale:clamp(morale), perception:clamp(perception), river:clamp(river), resist:clamp(resist),
+    id: legendaryName ? legendaryName+" (1/1)" : "#"+tokenId,
+    name: legendaryName ? legendaryName+" (1/1)" : (meta && meta.name ? meta.name : ("Green Acres #"+tokenId)),
+    cls: legendaryName ? 'Legendary' : bodyB, biome, rarity, mult, rarityScore: rarityScore?Math.round(rarityScore):null,
+    food:clamp(Math.max(food,statFloor)), combat:clamp(Math.max(combat,statFloor)), repair:clamp(Math.max(repair,statFloor)), trade:clamp(Math.max(trade,statFloor)),
+    morale:clamp(Math.max(morale,statFloor)), perception:clamp(Math.max(perception,statFloor)), river:clamp(Math.max(river,statFloor)), resist:clamp(Math.max(resist,statFloor)),
   };
   member.pfp = makePfp(member, idx);
   member.walk = makeWalkFrames(member, idx);
+  const image = meta && meta.image ? meta.image : null;
   if(image){ member.image = image; member.imgEl = new Image(); member.imgEl.crossOrigin='anonymous'; member.imgEl.src = image; }
   return member;
 }
@@ -735,8 +786,8 @@ async function connectWallet(){
         let uri = await contract.tokenURI(tokenId);
         uri = uri.replace('ipfs://','https://ipfs.io/ipfs/');
         const meta = await fetch(uri).then(r=>r.json());
-        const img = meta.image ? meta.image.replace('ipfs://','https://ipfs.io/ipfs/') : null;
-        return computeMemberFromAttributes(tokenId, meta.attributes, img, start+bi);
+        if(meta.image) meta.image = meta.image.replace('ipfs://','https://ipfs.io/ipfs/');
+        return computeMemberFromAttributes(tokenId, meta, start+bi);
       }));
       results.forEach(r=>{ if(r.status==='fulfilled') fetched.push(r.value); else console.warn('Could not load a token', r.reason); });
     }
@@ -748,7 +799,7 @@ async function connectWallet(){
     WALLET_ROSTER = fetched; usingWallet = true;
     selected = []; leaderIdx = null;
     const cappedNote = ids.length>100 ? ` (showing the first 100 of ${ids.length} held)` : '';
-    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Stats are derived live from their on-chain traits (rarity is an approximate class-based multiplier — true mint-rarity ranking isn't computed client-side in this prototype).`;
+    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Rarity is computed from the collection's real published trait-frequency counts across all 7 categories, and true 1-of-1s are recognized by name.`;
     renderRoster();
   }catch(err){
     console.error(err);
@@ -771,7 +822,7 @@ function renderRoster(){
       <span class="tag ${m.rarity==='Legendary'?'legendary':(m.rarity==='Rare'||m.rarity==='Epic'?'rare':'')}">${m.rarity}${plus}</span>
       <div><img class="pfp ${pixelCls}" src="${imgSrc}" alt="${m.name}"></div>
       <h4>${m.name}</h4>
-      <div class="muted" style="font-size:10px;">${m.id} · ${m.biome}</div>
+      <div class="muted" style="font-size:10px;">${m.id} · ${m.biome}${m.rarityScore?` · score ${m.rarityScore}`:''}</div>
       <div class="statgrid-mini">
         <div class="stat-mini"><span>Food</span><span>${m.food}</span></div>
         <div class="stat-mini"><span>Combat</span><span>${m.combat}</span></div>
