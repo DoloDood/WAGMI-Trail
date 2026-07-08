@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WAGMI Trail</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sixtyfour&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --trail-dusk:#16241a; --trail-forest:#233c28; --parchment:#f1e6c9; --parchment-dark:#e4d3a8;
+    --ink:#2b2318; --gold:#c9a227; --chain-cyan:#4fd6c4; --chain-cyan-dim:#2f6f66;
+    --danger:#b23a2f; --good:#5f8f4e; --shadow:rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  img.pixel{image-rendering:pixelated; image-rendering:crisp-edges;}
+  body{
+    background:radial-gradient(circle at 20% 10%, rgba(79,214,196,.06), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(201,162,39,.08), transparent 45%), var(--trail-dusk);
+    color:var(--parchment); font-family:'IBM Plex Mono', monospace; min-height:100vh; padding:24px 14px 60px;
+  }
+  .wrap{max-width:980px;margin:0 auto;}
+  h1,h2,h3{font-family:'Fraunces', serif; margin:0 0 6px;}
+  .glow{font-family:'Sixtyfour', monospace; letter-spacing:.03em;}
+  .eyebrow{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--chain-cyan-dim); margin-bottom:4px; font-weight:700;}
+  .panel{
+    background:linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dark) 100%); color:var(--ink);
+    border-radius:6px; box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(0,0,0,.08);
+    padding:22px; margin-bottom:18px; position:relative;
+  }
+  .btn{
+    font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:13px; letter-spacing:.03em; text-transform:uppercase;
+    background:var(--trail-forest); color:var(--parchment); border:1px solid var(--gold);
+    padding:11px 18px; border-radius:4px; cursor:pointer; transition:.12s ease;
+  }
+  .btn:hover{background:#2c4a32; box-shadow:0 0 0 3px rgba(201,162,39,.25);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn.chain{border-color:var(--chain-cyan); background:var(--chain-cyan-dim); color:#eafffb;}
+  .btn.small{padding:5px 9px; font-size:11px;}
+  .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center;}
+  .between{justify-content:space-between;}
+  .muted{color:#6a5d44; font-size:12.5px;}
+  .tag{display:inline-block; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:20px; margin-right:4px; margin-bottom:4px; background:rgba(43,35,24,.08); font-weight:600;}
+  .tag.rare{background:#e9d9b3; color:#6b4e00;} .tag.legendary{background:linear-gradient(90deg,#c9a227,#4fd6c4); color:#1c1c1c;}
+
+  .title-screen{text-align:center; padding:60px 20px;}
+  .title-screen h1{font-size:44px;}
+  .title-screen .glow{font-size:13px; color:var(--chain-cyan-dim); display:block; margin-top:6px;}
+  .lore{max-width:560px; margin:22px auto; font-size:13.5px; line-height:1.7; color:#4a4030;}
+
+  .roster{display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; margin-top:14px;}
+  .card{border:2px solid rgba(43,35,24,.15); border-radius:6px; padding:10px; background:rgba(255,255,255,.35); cursor:pointer; transition:.12s ease; text-align:center;}
+  .card:hover{border-color:var(--gold);}
+  .card.selected{border-color:var(--good); background:rgba(95,143,78,.18);}
+  .card.leader{outline:3px solid var(--gold);}
+  .card img.pfp{width:64px; height:77px; border:1px solid rgba(43,35,24,.3); border-radius:3px;}
+  .card h4{margin:6px 0 1px; font-size:14px;}
+  .stat-mini{font-size:10px; display:flex; justify-content:space-between;}
+  .statgrid-mini{text-align:left; margin-top:5px;}
+  .leader-pick{margin-top:7px; font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:4px 6px; border-radius:3px; background:rgba(43,35,24,.08);}
+  .card.leader .leader-pick{background:var(--gold); color:#2b2318; font-weight:700;}
+
+  .store-grid{display:grid; grid-template-columns:1fr auto auto auto; gap:8px 14px; align-items:center; margin:12px 0;}
+  .store-grid .item-name{font-weight:600; font-size:13px;}
+  .store-grid .item-price{font-size:11px; color:#6a5d44;}
+  .qty{display:flex; align-items:center; gap:6px;}
+  .qty input{width:52px; text-align:center; padding:6px; border-radius:4px; border:1px solid rgba(43,35,24,.25); font-family:'IBM Plex Mono'; font-size:12px;}
+
+  #travelScene{display:block; margin:0 auto 6px; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:#bfe3e0;}
+  .trailmap{position:relative; height:70px; margin:6px 0 20px;}
+  .trailmap .track{position:absolute; top:32px; left:0; right:0; height:4px; background:rgba(43,35,24,.18); border-radius:2px;}
+  .trailmap .fill{position:absolute; top:32px; left:0; height:4px; background:linear-gradient(90deg,var(--good),var(--chain-cyan)); border-radius:2px; transition:width .4s ease;}
+  .trailmap .wagon{position:absolute; top:6px; transform:translateX(-50%); transition:left .4s ease;}
+  .trailmap .lm{position:absolute; top:22px; transform:translateX(-50%);}
+  .trailmap .lm-label{position:absolute; top:44px; font-size:8.5px; transform:translateX(-50%); white-space:nowrap; color:#6a5d44;}
+
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:10px 0;}
+  .stat-box{background:rgba(43,35,24,.06); border-radius:5px; padding:9px 10px;}
+  .stat-box .label{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6a5d44;}
+  .stat-box .value{font-family:'Fraunces',serif; font-size:19px; font-weight:600;}
+
+  .healthbars{display:grid; gap:7px; margin:8px 0 4px;}
+  .hb-row{display:grid; grid-template-columns:26px 88px 1fr 34px; align-items:center; gap:8px; font-size:11px;}
+  .hb-row img{width:22px; height:26px; border-radius:2px;}
+  .hb-track{height:9px; background:rgba(43,35,24,.12); border-radius:5px; overflow:hidden;}
+  .hb-fill{height:100%; background:linear-gradient(90deg,var(--good),#8fc47a);}
+  .hb-fill.low{background:linear-gradient(90deg,var(--danger),#e0715f);}
+  .dead{opacity:.35; text-decoration:line-through;}
+
+  select, input[type=text]{font-family:'IBM Plex Mono', monospace; font-size:12.5px; padding:8px 10px; border-radius:4px; border:1px solid rgba(43,35,24,.25); background:#fffdf6;}
+
+  .log{max-height:170px; overflow-y:auto; font-size:12px; line-height:1.6; background:rgba(43,35,24,.05); border-radius:5px; padding:10px 12px; margin-top:8px;}
+  .log div{border-bottom:1px dashed rgba(43,35,24,.12); padding:3px 0;}
+  .log div:last-child{border-bottom:none;}
+  .log .ev-bad{color:var(--danger);} .log .ev-good{color:var(--good);} .log .ev-chain{color:var(--chain-cyan-dim); font-weight:600;}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(10,15,10,.75); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px;}
+  .modal{background:var(--parchment); color:var(--ink); border-radius:8px; padding:20px; max-width:520px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.5); max-height:88vh; overflow-y:auto;}
+  .modal h3{display:flex; align-items:center; gap:8px;}
+  #huntCanvas{background:#cfe0b8; border-radius:6px; display:block; margin:10px auto; cursor:crosshair; touch-action:none;}
+  .fish-track{position:relative; height:34px; background:#bcd7e8; border-radius:17px; margin:16px 0; overflow:hidden; border:2px solid #7fa6c2;}
+  .fish-zone{position:absolute; top:0; bottom:0; background:rgba(95,143,78,.55); border-left:2px dashed #2f5233; border-right:2px dashed #2f5233;}
+  .fish-marker{position:absolute; top:2px; bottom:2px; width:6px; background:#c9a227; border-radius:3px; box-shadow:0 0 6px rgba(0,0,0,.4);}
+
+  .npc-quote{background:rgba(43,35,24,.07); border-left:3px solid var(--gold); padding:10px 12px; font-size:12.5px; font-style:italic; margin:10px 0; border-radius:0 4px 4px 0;}
+  .fork-options{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;}
+  .fork-card{border:2px solid rgba(43,35,24,.2); border-radius:6px; padding:12px; cursor:pointer;}
+  .fork-card:hover{border-color:var(--gold); background:rgba(201,162,39,.08);}
+  .fork-card h4{margin:0 0 4px;}
+
+  .final-score{text-align:center; padding:10px 0 4px;}
+  .final-score .num{font-family:'Fraunces',serif; font-size:52px; color:var(--gold); text-shadow:0 0 18px rgba(201,162,39,.4);}
+  table.lb{width:100%; border-collapse:collapse; font-size:12px; margin-top:10px;}
+  table.lb th, table.lb td{text-align:left; padding:6px 8px; border-bottom:1px solid rgba(43,35,24,.12);}
+  table.lb th{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#6a5d44;}
+
+  .hide{display:none !important;}
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:rgba(43,35,24,.25); border-radius:4px;}
+  @media (max-width:520px){ .title-screen h1{font-size:30px;} .fork-options{grid-template-columns:1fr;} .hb-row{grid-template-columns:20px 70px 1fr 30px;} }
+</style>
+</head>
+<body>
+<button class="btn small" id="music-toggle-btn" onclick="toggleMusicButton()" style="position:fixed; top:14px; right:14px; z-index:200;">🔇 Music</button>
+<div class="wrap">
+
+  <div id="screen-title">
+    <div class="panel title-screen">
+      <span class="eyebrow">DOLO x Green Acres Presents</span>
+      <h1>WAGMI TRAIL</h1>
+      <span class="glow">a metaverse crossing // acre.exe launched</span>
+      <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across 2,000 chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, trade at the towns along the way, and put your score on the leaderboard.</p>
+      <button class="btn chain" onclick="goToPartySelect()">Assemble Your Party →</button>
+      <div style="margin-top:16px;"><a href="https://x.com/dolodood" target="_blank" rel="noopener noreferrer" style="color:var(--chain-cyan-dim); font-size:12px; text-decoration:none; letter-spacing:.05em;">Follow @dolodood on X →</a></div>
+    </div>
+  </div>
+
+  <div id="screen-party" class="hide">
+    <div class="panel">
+      <span class="eyebrow">Step 1 of 3</span>
+      <h2>Choose Your Party</h2>
+      <p class="muted">Select exactly 4 Acres. Then tap "Set as Leader" on one — their Class sets your Score Multiplier (rarer Leader = bigger multiplier, but a smaller outfitting budget — same trade-off as a hard-mode profession).</p>
+      <div class="row between" style="margin:10px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:5px;">
+        <div class="muted" id="wallet-status">Showing the demo roster. Connect a wallet to play with the Green Acres NFTs you actually hold.</div>
+        <button class="btn small" id="connect-wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+      </div>
+      <div class="row between" style="margin-top:10px;">
+        <div class="muted" id="party-status">Selected: 0 / 4 &nbsp;•&nbsp; Leader: none</div>
+        <button class="btn chain" id="confirm-party-btn" disabled onclick="goToOutfitting()">Continue to Outfitting →</button>
+      </div>
+      <div class="roster" id="roster"></div>
+    </div>
+  </div>
+
+  <div id="screen-outfit" class="hide">
+    <div class="panel">
+      <span class="eyebrow">Step 2 of 3</span>
+      <h2>Outfit the Wagon</h2>
+      <p class="muted" id="outfit-intro"></p>
+      <div class="store-grid" id="outfit-store"></div>
+      <div class="row between" style="margin-top:14px; border-top:1px solid rgba(43,35,24,.15); padding-top:12px;">
+        <div><b>Remaining cash:</b> <span id="outfit-remaining">0</span> Ξ</div>
+        <button class="btn chain" id="depart-btn" onclick="departTrail()">Depart the Homestead →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-trail" class="hide">
+    <div class="panel">
+      <div class="row between">
+        <div><span class="eyebrow">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
+        <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
+      </div>
+      <canvas id="travelScene" width="640" height="120"></canvas>
+      <div class="trailmap" id="trailmap"></div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="label">Distance</div><div class="value"><span id="stat-distance">0</span> / 2000mi</div></div>
+        <div class="stat-box"><div class="label">Food</div><div class="value" id="stat-food">0</div></div>
+        <div class="stat-box"><div class="label">Cash (Ξ)</div><div class="value" id="stat-cash">0</div></div>
+        <div class="stat-box"><div class="label">Ammo</div><div class="value" id="stat-ammo">0</div></div>
+        <div class="stat-box"><div class="label">Spare Parts</div><div class="value" id="stat-parts">0</div></div>
+        <div class="stat-box"><div class="label">Oxen</div><div class="value" id="stat-oxen">0</div></div>
+      </div>
+      <div class="healthbars" id="healthbars"></div>
+      <div class="row" style="margin-top:12px;">
+        <div><div class="muted" style="margin-bottom:4px;">Pace</div>
+          <select id="pace-select"><option value="steady">Steady</option><option value="strenuous">Strenuous</option><option value="grueling">Grueling</option></select></div>
+        <div><div class="muted" style="margin-bottom:4px;">Rations</div>
+          <select id="ration-select"><option value="filling">Filling</option><option value="meager" selected>Meager</option><option value="barebones">Bare Bones</option></select></div>
+        <div style="align-self:flex-end;"><button class="btn" onclick="travelStretch()" id="travel-btn">Travel Next Stretch →</button></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn small" onclick="restDay()">🛌 Rest a Day</button>
+        <button class="btn small" onclick="forage()">🌿 Forage</button>
+        <button class="btn small" onclick="huntAnytime()">🏹 Hunt Now</button>
+        <span class="muted" id="action-hint">Rest heals but costs a day. Forage is free but limited to once per day. Hunting costs ammo, not time.</span>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div id="screen-end" class="hide">
+    <div class="panel">
+      <span class="eyebrow" id="end-eyebrow">Journey Complete</span>
+      <h2 id="end-title">You reached Diamond Acres</h2>
+      <div class="final-score"><div class="num" id="final-score-num">0</div><div class="muted">Final Score</div></div>
+      <div class="stat-grid" id="score-breakdown"></div>
+      <div class="row" style="margin-top:14px;">
+        <input type="text" id="player-name" placeholder="Trail name for the leaderboard" maxlength="18">
+        <button class="btn chain" onclick="saveScore()">Save Score</button>
+        <button class="btn" onclick="resetGame()">Play Again</button>
+      </div>
+      <table class="lb" id="leaderboard-table"></table>
+    </div>
+  </div>
+
+  <div id="modal-town" class="modal-bg hide">
+    <div class="modal">
+      <h3 id="town-title"></h3>
+      <div class="npc-quote" id="town-quote"></div>
+      <div class="store-grid" id="town-store"></div>
+      <div class="row between" style="margin-top:10px;">
+        <div><b>Cash:</b> <span id="town-cash">0</span> Ξ</div>
+        <button class="btn chain" onclick="leaveTown()">Continue Journey →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-fork" class="modal-bg hide">
+    <div class="modal">
+      <h3 id="fork-title"></h3>
+      <p class="muted" id="fork-desc"></p>
+      <div class="fork-options" id="fork-options"></div>
+    </div>
+  </div>
+
+  <div id="modal-hunt" class="modal-bg hide">
+    <div class="modal">
+      <h3><img id="hunt-icon" class="pixel" width="20" height="20"><span id="hunt-title">Hunting</span></h3>
+      <p class="muted">Click game as it crosses the field. Each shot costs 1 ammo. <span id="hunt-timer">8</span>s left.</p>
+      <canvas id="huntCanvas" width="400" height="240"></canvas>
+      <div class="row between">
+        <div class="muted">Hits: <b id="hunt-hits">0</b> &nbsp;|&nbsp; Ammo: <b id="hunt-ammo">0</b></div>
+        <button class="btn" id="hunt-start-btn" onclick="startHunt()">Start Hunt</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-fish" class="modal-bg hide">
+    <div class="modal">
+      <h3><img id="fish-icon" class="pixel" width="20" height="20"><span id="fish-title">Fishing</span></h3>
+      <p class="muted">Click "Reel!" when the marker is inside the green zone. <span id="fish-round-label">Cast 1 / 5</span></p>
+      <div class="fish-track"><div class="fish-zone" id="fish-zone"></div><div class="fish-marker" id="fish-marker"></div></div>
+      <div class="row between"><div class="muted">Catches: <b id="fish-catches">0</b></div><button class="btn" id="fish-reel-btn" onclick="reelFish()">Reel!</button></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   GENERATIVE BACKGROUND MUSIC
+   No audio files — a small procedural composer using the Web
+   Audio API. Chord progressions rotate unpredictably and the
+   melody is re-generated every beat within the current chord's
+   scale, so it never plays the same phrase twice. Mood (tempo,
+   key, brightness) shifts with what's happening on the trail.
+   ============================================================ */
+let audioCtx = null, musicGain = null, musicEnabled = false, musicStarted = false;
+let schedulerTimer = null, nextNoteTime = 0, currentBeat = 0;
+let currentProgression = null, progressionIndex = 0, barsIntoProgression = 0;
+
+const SCALE_MAJOR = [0,2,4,5,7,9,11];
+const PROGRESSIONS = [ [0,4,5,3], [0,5,3,4], [3,4,0,0], [0,3,4,4], [5,3,0,4], [0,2,3,4] ];
+
+function degToSemis(deg){ const L=SCALE_MAJOR.length; const oct=Math.floor(deg/L)*12; return SCALE_MAJOR[((deg%L)+L)%L]+oct; }
+function noteFreq(rootMidi, semis){ return 440*Math.pow(2, (rootMidi+semis-69)/12); }
+
+function initAudio(){
+  if(audioCtx) return;
+  try{
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = 0.0;
+    musicGain.connect(audioCtx.destination);
+  }catch(e){ console.warn('Web Audio unavailable', e); }
+}
+function pickProgression(){ currentProgression = PROGRESSIONS[Math.floor(Math.random()*PROGRESSIONS.length)]; progressionIndex=0; barsIntoProgression=0; }
+
+function moodParams(){
+  const mode = state ? state.sceneMode : 'trail';
+  if(mode==='hazard') return {tempo:130, rootMidi:57};
+  if(mode==='town' || mode==='legendary') return {tempo:118, rootMidi:64};
+  if(mode==='river') return {tempo:96, rootMidi:60};
+  return {tempo:106, rootMidi:60};
+}
+
+function playTone(freq, time, dur, type, vol, attack){
+  if(!audioCtx) return;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(freq, time);
+  g.gain.setValueAtTime(0, time);
+  g.gain.linearRampToValueAtTime(vol, time+attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+  osc.connect(g); g.connect(musicGain);
+  osc.start(time); osc.stop(time+dur+0.05);
+}
+function playNoise(time, dur, vol){
+  if(!audioCtx) return;
+  const n = Math.max(1, Math.floor(audioCtx.sampleRate*dur));
+  const buffer = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<n;i++) data[i] = (Math.random()*2-1)*(1-i/n);
+  const src = audioCtx.createBufferSource(); src.buffer = buffer;
+  const g = audioCtx.createGain(); g.gain.value = vol;
+  src.connect(g); g.connect(musicGain);
+  src.start(time);
+}
+function scheduleBeat(time, rootMidi, beatDur){
+  const deg = currentProgression[progressionIndex];
+  const beatInBar = currentBeat%4;
+  if(beatInBar===0 || beatInBar===2){ playTone(noteFreq(rootMidi-12, degToSemis(deg)), time, beatDur*0.9, 'triangle', 0.16, 0.01); }
+  if(beatInBar===0){ [0,2,4].forEach(off=> playTone(noteFreq(rootMidi, degToSemis(deg+off)), time, beatDur*3.8, 'sine', 0.045, 0.4)); }
+  playNoise(time, beatInBar%2===0?0.05:0.03, beatInBar%2===0?0.05:0.025);
+  for(let sub=0; sub<2; sub++){
+    if(Math.random()<0.65){
+      const subTime = time + sub*(beatDur/2);
+      const choices = [deg, deg+2, deg+4, deg+1, deg+3, deg+5, deg-1];
+      const chosen = choices[Math.floor(Math.random()*choices.length)];
+      playTone(noteFreq(rootMidi+12, degToSemis(chosen)), subTime, beatDur*0.45, 'square', 0.05, 0.005);
+    }
+  }
+}
+function musicScheduler(){
+  if(!audioCtx) return;
+  const {tempo, rootMidi} = moodParams();
+  const beatDur = 60/tempo;
+  while(nextNoteTime < audioCtx.currentTime + 0.2){
+    scheduleBeat(nextNoteTime, rootMidi, beatDur);
+    nextNoteTime += beatDur;
+    currentBeat++;
+    if(currentBeat%4===0){
+      barsIntoProgression++;
+      progressionIndex = (progressionIndex+1) % currentProgression.length;
+      if(barsIntoProgression >= currentProgression.length*(2+Math.floor(Math.random()*2))) pickProgression();
+    }
+  }
+}
+function startMusic(){
+  initAudio();
+  if(!audioCtx) return;
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  musicEnabled = true;
+  musicGain.gain.setTargetAtTime(0.22, audioCtx.currentTime, 0.6);
+  document.getElementById('music-toggle-btn').textContent = '\ud83d\udd0a Music';
+  if(musicStarted) return;
+  musicStarted = true;
+  nextNoteTime = audioCtx.currentTime + 0.1;
+  pickProgression();
+  schedulerTimer = setInterval(musicScheduler, 100);
+}
+function toggleMusicButton(){
+  if(!musicStarted){ startMusic(); return; }
+  musicEnabled = !musicEnabled;
+  musicGain.gain.setTargetAtTime(musicEnabled?0.22:0, audioCtx.currentTime, 0.2);
+  document.getElementById('music-toggle-btn').textContent = musicEnabled ? '\ud83d\udd0a Music' : '\ud83d\udd07 Music';
+}
+
+/* ============================================================
+   PIXEL ART ENGINE — procedural sprites, no emoji, no external images
+   ============================================================ */
+function spriteToDataURL(rows, palette, pixel){
+  pixel = pixel || 6;
+  const w = rows[0].length, h = rows.length;
+  const c = document.createElement('canvas'); c.width = w*pixel; c.height = h*pixel;
+  const ctx = c.getContext('2d');
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const ch = rows[y][x]; const color = palette[ch];
+    if(!color) continue;
+    ctx.fillStyle = color; ctx.fillRect(x*pixel, y*pixel, pixel, pixel);
+  }
+  return c.toDataURL();
+}
+function drawSpriteCentered(ctx, rows, palette, cx, cy, pixel){
+  const w = rows[0].length, h = rows.length;
+  const sx = cx - (w*pixel)/2, sy = cy - (h*pixel)/2;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const ch = rows[y][x]; const color = palette[ch];
+    if(!color) continue;
+    ctx.fillStyle = color; ctx.fillRect(sx+x*pixel, sy+y*pixel, pixel, pixel);
+  }
+}
+
+const WAGON_ROWS = [
+  "...KWWWWWWK...",
+  "..KWWWWWWWWK..",
+  ".KWWWWWWWWWWK.",
+  "KWWWWWWWWWWWWK",
+  "..KKKKKKKKKK..",
+  "..BBBBBBBBBB..",
+  "..BBBBBBBBBB..",
+  ".K.BB....BB.K.",
+  "K.O..K..K..O.K",
+  "..O..K..K..O..",
+];
+const WAGON_PAL = {K:'#2b2318', W:'#f4ede0', B:'#7a4a2b', O:'#3a3226'};
+
+const FISH_ROWS = ["...KK...","..KSSSK.","KSSSSSSK","SSSSSSSK","KSSSSSSK","..KSSSK.","...KK..."];
+const FISH_PAL = {K:'#1f3a4a', S:'#4fd6c4'};
+
+const DEER_ROWS = [
+  "..A....A..",
+  "...AAAAA..",
+  "...BBBBB..",
+  "..BBBBBBB.",
+  ".BBBBBBBBB",
+  ".BBBBBBBBB",
+  "..K.K.K.K.",
+  "..K.K.K.K.",
+];
+const DEER_PAL = {A:'#5b3a29', B:'#a9744f', K:'#2b1d14'};
+
+const RABBIT_ROWS = [".K...K.",".K...K.","KKKKKKK","KWWWWWK","KWWWWWK",".WWWWW.","..WWW.."];
+const RABBIT_PAL = {K:'#6b5843', W:'#c9b89a'};
+
+const BISON_ROWS = [
+  "..AAAA....",
+  ".AAAAAAA..",
+  "BBBBBBBBBB",
+  "BBBBBBBBBB",
+  "BBBBBBBBBB",
+  "..K..K..K.",
+  "..K..K..K.",
+];
+const BISON_PAL = {A:'#3d2b1f', B:'#6d4c33', K:'#241a11'};
+
+const TURKEY_ROWS = ["..A.....","..AA....",".KKKKK..","KBBBBBK.","KBBBBBK.",".BBBBB..","..K.K..."];
+const TURKEY_PAL = {A:'#b23a2f', K:'#241a11', B:'#7a5c3e'};
+
+const ICONS = {
+  FUEL: {rows:["..KKKK..",".KWWWWK.","KWWRWWWK","KWWRWWWK","KWWWWWWK","KWWWWWWK","KWWWWWWK","..KKKK.."], pal:{K:'#2b2318', W:'#8d8d8d', R:'#b23a2f'}},
+  RAVINE: {rows:["KK....KK","KKK..KKK",".KKKKKK.","KK.KK.KK","KKK..KKK","K.KKKK.K","KK.KK.KK","KKKKKKKK"], pal:{K:'#5b3a29'}},
+  GORGE: {rows:["K......K","KY.....K","KYY....K","K.YY...K","K..YY..K","K...YYK.","K....YYK","K.....YK"], pal:{K:'#5b5b5b', Y:'#c9a227'}},
+  STORE: {rows:["..KKKK..",".KRRRRK.","KRRRRRRK","KWWWWWWK","KWKWWKWK","KWKWWKWK","KWKDDKWK","KKKKKKKK"], pal:{K:'#2b2318', R:'#b23a2f', W:'#e4d3a8', D:'#5b3a29'}},
+  PAW: {rows:[".K...K..","..K.K...","..BBB...",".BBBBB..","..BBB...","........","........","........"], pal:{K:'#7a4a2b', B:'#7a4a2b'}},
+  SIGNPOST: {rows:["..KKKK..",".KWWWWK.","KWWWWWWK","..K..K..","..K..K..","..K..K..","..K..K..","..KKKK.."], pal:{K:'#3a3226', W:'#e4d3a8'}},
+  CHAINLINK: {rows:["OKKO..OK","K....K..","K....K..","OKKO.OKK","..K....K","..K....K","OKKO..OK","........"], pal:{K:'#4fd6c4', O:'#2f6f66'}},
+  LEGENDCHEST: {rows:["KKKKKKKK","KYYYYYYK","KYWWWWYK","KYYYYYYK","KWWWWWWK","KWWWWWWK","KWWWWWWK","KKKKKKKK"], pal:{K:'#3a3226', Y:'#c9a227', W:'#e4d3a8'}},
+};
+
+const SPRITE_URLS = {WAGON: spriteToDataURL(WAGON_ROWS, WAGON_PAL, 4)};
+Object.keys(ICONS).forEach(k=> SPRITE_URLS[k] = spriteToDataURL(ICONS[k].rows, ICONS[k].pal, 5));
+
+// ---- PFP portrait generator (Green Acres style bust) ----
+const BUST_ROWS = [
+  "..HHHHHH..",
+  ".HHHHHHHH.",
+  "HHSSSSSSHH",
+  "HSSSSSSSSH",
+  "HSSESSESSH",
+  "HSSSSSSSSH",
+  "HSSSSSSSSH",
+  ".SSSSSSSS.",
+  "..SSSSSS..",
+  ".OOOOOOOO.",
+  "OOOOOOOOOO",
+  "OOOOOOOOOO",
+];
+const BIOME_COLORS = {Prairie:'#c9a227', Canyon:'#b5651d', Factory:'#7f8c8d', Welcome:'#5f8f4e', Homestead:'#4fd6c4', 'Open Sky':'#4a90d9'};
+const RARITY_HAT = {Common:'#8d6e63', Uncommon:'#4a90d9', Rare:'#8e44ad', Epic:'#e67e22', Legendary:'#f1c40f'};
+const CLASS_OUTFIT = {Laborer:'#6d4c41', Military:'#556b2f', Outlaw:'#2b2b2b', Professional:'#2c3e50', Social:'#c2185b', Maritime:'#1565c0', Wanderer:'#a1887f', Legendary:'#5e35b1'};
+const SKIN_TONES = ['#e8b088','#c68642','#8d5524'];
+
+function makePfp(member, idx){
+  const bg = BIOME_COLORS[member.biome] || '#4a4a4a';
+  const hat = RARITY_HAT[member.rarity] || '#8d6e63';
+  const outfit = CLASS_OUTFIT[member.cls] || '#555';
+  const skin = SKIN_TONES[idx%SKIN_TONES.length];
+  const rows = ["BBBBBBBBBB"].concat(BUST_ROWS.map(r=>r), ["BBBBBBBBBB"]);
+  const palette = {B:bg, H:hat, S:skin, E:'#241a11', O:outfit};
+  return spriteToDataURL(rows, palette, 6);
+}
+
+// ---- Walking full-body sprites for the traveling scene (2-frame walk cycle) ----
+const WALK_BODY = ["..HHHH..",".HHHHHH.","HSSSSSSH","HSSSSSSH",".SSSSSS.",".OOOOOO.","OOOOOOOO","OOOOOOOO"];
+const LEGS_A = [".LL..RR.","LL....RR"];
+const LEGS_B = ["RR..LL..","RR....LL"];
+function makeWalkFrames(member, idx){
+  const hat = RARITY_HAT[member.rarity] || '#8d6e63';
+  const outfit = CLASS_OUTFIT[member.cls] || '#555';
+  const skin = SKIN_TONES[idx%SKIN_TONES.length];
+  const palette = {H:hat, S:skin, O:outfit, L:'#3a2f22', R:'#3a2f22'};
+  return { rowsA: WALK_BODY.concat(LEGS_A), rowsB: WALK_BODY.concat(LEGS_B), palette };
+}
+const OX_ROWS = ["..AAAA.....",".AAAAAAA...","BBBBBBBBBB.","BBBBBBBBBB.","BBBBBBBBBB.","..K..K..K..","..K..K..K.."];
+const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
+
+/* ============================================================
+   GAME DATA
+   ============================================================ */
+const TRAIL_GOAL = 2000;
+
+const ROSTER = [
+  {id:"#0231", name:"The Farmer",     cls:"Laborer",      rarity:"Rare",      mult:2,   biome:"Prairie",   food:9, combat:3, repair:5, trade:4, morale:6, perception:5, river:4, resist:6},
+  {id:"#0987", name:"The General",    cls:"Military",     rarity:"Epic",      mult:3,   biome:"Canyon",    food:3, combat:9, repair:3, trade:5, morale:5, perception:6, river:3, resist:5},
+  {id:"#1420", name:"The Bandit",     cls:"Outlaw",        rarity:"Uncommon",  mult:1.5, biome:"Factory",   food:5, combat:7, repair:3, trade:2, morale:4, perception:6, river:3, resist:4},
+  {id:"#0765", name:"The Judge",      cls:"Professional",  rarity:"Rare",      mult:2,   biome:"Welcome",   food:3, combat:4, repair:3, trade:9, morale:5, perception:6, river:3, resist:5},
+  {id:"#0333", name:"The Bartender",  cls:"Social",        rarity:"Common",    mult:1,   biome:"Homestead", food:4, combat:3, repair:3, trade:6, morale:9, perception:4, river:3, resist:4},
+  {id:"#1188", name:"The Sea Captain",cls:"Maritime",      rarity:"Epic",      mult:3,   biome:"Open Sky",  food:4, combat:5, repair:5, trade:5, morale:5, perception:6, river:9, resist:5},
+  {id:"#0456", name:"The Sheikh",     cls:"Wanderer",      rarity:"Rare",      mult:2,   biome:"Prairie",   food:5, combat:4, repair:3, trade:6, morale:5, perception:8, river:3, resist:7},
+  {id:"#0999", name:"The Constructor",cls:"Laborer",       rarity:"Common",    mult:1,   biome:"Factory",   food:6, combat:3, repair:7, trade:3, morale:4, perception:4, river:3, resist:5},
+  {id:"#0654", name:"The Scientist",  cls:"Professional",  rarity:"Uncommon",  mult:1.5, biome:"Canyon",    food:3, combat:3, repair:6, trade:6, morale:5, perception:7, river:3, resist:6},
+  {id:"#0210", name:"The Punk",       cls:"Outlaw",        rarity:"Common",    mult:1,   biome:"Welcome",   food:4, combat:6, repair:3, trade:2, morale:5, perception:5, river:3, resist:4},
+  {id:"#0888", name:"The Admiral",    cls:"Maritime",      rarity:"Rare",      mult:2,   biome:"Open Sky",  food:4, combat:6, repair:4, trade:5, morale:5, perception:6, river:8, resist:5},
+  {id:"#0345", name:"The Gentleman",  cls:"Professional",  rarity:"Uncommon",  mult:1.5, biome:"Homestead", food:3, combat:3, repair:4, trade:8, morale:6, perception:6, river:3, resist:5},
+  {id:"#0777", name:"The Postman",    cls:"Laborer",       rarity:"Common",    mult:1,   biome:"Factory",   food:5, combat:3, repair:7, trade:4, morale:4, perception:5, river:3, resist:5},
+  {id:"#0512", name:"The Strong Man", cls:"Laborer",       rarity:"Uncommon",  mult:1.5, biome:"Prairie",   food:7, combat:6, repair:4, trade:3, morale:5, perception:4, river:3, resist:6},
+  {id:"Patty", name:"Patty (1/1)",    cls:"Legendary",     rarity:"Legendary", mult:4,   biome:"Homestead", food:8, combat:8, repair:8, trade:8, morale:8, perception:8, river:8, resist:8},
+  {id:"Cooper", name:"Cooper (1/1)",  cls:"Legendary",     rarity:"Legendary", mult:4,   biome:"Canyon",    food:7, combat:7, repair:9, trade:7, morale:9, perception:7, river:7, resist:8},
+];
+ROSTER.sort((a,b)=> b.mult - a.mult || a.name.localeCompare(b.name));
+ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i); });
+
+const LANDMARKS = [
+  {mile:150,  name:"Mempool Marsh",         type:"river",     icon:"FISH"},
+  {mile:300,  name:"Gas Fee Gulch",         type:"hazard",    icon:"FUEL"},
+  {mile:420,  name:"The Diamond Hands Split", type:"fork",    icon:"SIGNPOST"},
+  {mile:600,  name:"Whale Watch Point",     type:"town",      icon:"STORE"},
+  {mile:750,  name:"Rug Pull Ravine",       type:"hazard",    icon:"RAVINE"},
+  {mile:900,  name:"Consensus Canyon",      type:"river",     icon:"FISH"},
+  {mile:1050, name:"Wagmi Wells",           type:"town",      icon:"STORE"},
+  {mile:1200, name:"Gwei Gorge",            type:"hazard",    icon:"GORGE"},
+  {mile:1350, name:"Ape Coin Acres",        type:"plains",    icon:"PAW"},
+  {mile:1500, name:"Cold Storage Crossing", type:"fork",      icon:"SIGNPOST"},
+  {mile:1650, name:"Staking Stream",        type:"river",     icon:"FISH"},
+  {mile:1800, name:"Airdrop Alley",         type:"town",      icon:"STORE"},
+  {mile:1920, name:"Genesis Block Gulch",   type:"legendary", icon:"LEGENDCHEST"},
+];
+
+const PACE = {
+  steady:    {label:"Steady",    milesMin:12, milesMax:16, daysPerStretch:3, fatigue:0,  eventMod:1.0},
+  strenuous: {label:"Strenuous", milesMin:17, milesMax:22, daysPerStretch:2, fatigue:2,  eventMod:1.15},
+  grueling:  {label:"Grueling",  milesMin:23, milesMax:28, daysPerStretch:1, fatigue:5,  eventMod:1.3},
+};
+const RATIONS = {
+  filling:   {label:"Filling",   perMember:3, healthDelta:+3},
+  meager:    {label:"Meager",    perMember:2, healthDelta:0},
+  barebones: {label:"Bare Bones",perMember:1, healthDelta:-4},
+};
+
+const STARTING_CASH = {1:800, 1.5:650, 2:500, 3:350, 4:250};
+const PRICES = {oxen:40, food50:10, clothing:10, ammoBox:5, parts:15};
+
+const NPC_QUOTES = [
+  "\"Cash reserves are fine, but a party with matching biomes wins the trail — trust the stack.\" — trail veteran at the depot.",
+  "\"Heard someone forded Rug Pull Ravine with a Rare Repair stat and lost the whole wagon anyway. Rarity ain't everything out there.\"",
+  "\"They say the 1/1s wander the trail themselves, if the stars — sorry, the blocks — align.\"",
+  "\"Ammo's cheap here. Won't be once you're past Gwei Gorge.\"",
+  "\"You can always tell a Farmer-class wagon. Slowest cash, fattest food stores.\"",
+  "\"Cold Storage or the long way round — pick your poison at the crossing up ahead.\"",
+];
+
+let selected = [], leaderIdx = null, state = null, leaderboard = [];
+let outfitBudget = 0;
+let usingWallet = false, WALLET_ROSTER = [];
+function getCurrentRoster(){ return (usingWallet && WALLET_ROSTER.length) ? WALLET_ROSTER : ROSTER; }
+
+/* ============================================================
+   ON-CHAIN TRAIT ENGINE — maps real Green Acres trait values
+   to the same buckets defined in the trait-reference workbook,
+   so a wallet-connected NFT gets real, trait-derived stats.
+   ============================================================ */
+const CONTRACT_ADDRESS = "0x266Cd5A2807082C2D09B346dC87311189DaeD36F";
+const CONTRACT_ABI = [
+  "function tokensOfOwner(address owner) view returns (uint256[])",
+  "function tokenURI(uint256 tokenId) view returns (string)"
+];
+function invert(bucketMap){ const out={}; Object.keys(bucketMap).forEach(b=> bucketMap[b].forEach(v=> out[v]=b)); return out; }
+
+const BODY_MAP = invert({
+  Laborer:["Farmer","Constructor","Strong Man","Grave Digger","Blue Collar","Train Conductor","Postman"],
+  Military:["WW1 Soldier","WW2 Soldier","Pilot","Canadian Police","General"],
+  Outlaw:["Prisoner","Bandit","Punk","Leather Jacket"],
+  Professional:["Accountant","Scientist","Gentleman","Judge"],
+  Social:["Bartender","Sexy & She Knows It","Beach Day","Best Man"],
+  Maritime:["Sea Captain","Admiral"],
+  Wanderer:["Bedouin Robe","Sheikh Robe","Tyrolean"],
+  Everyday:["Cute Jumper","Comfy Hoodie","Tank Top","Don't Worry","Brown Coat","Flannel","Sweater Weather","White Tank"],
+});
+const HAND_MAP = invert({
+  Weapons:["Cavalry Sword","Revolver","WW1 Rifle","WW1 Grenade","Whip","Hand Axe","Combat Knife","Cutlass","Dynamite","WW2 Rifle"],
+  Tools:["Shovel","Pickaxe","Hammer","Brush","Test Tube","Notepad","Fourche","Sicle"],
+  CompanionAnimals:["Black Sheep","Baby Monkey","Parrot","Mouse","Goat","Dog","Cat","Chicken","Duckling","Frog","Piglet","Calf"],
+  Valuables:["Amber","Pearl","Sapphire","Emerald","Ruby","Diamond","Chalice","Beads"],
+  Comfort:["Corona","Bottle","Cup","Popsicle","Blunt","Whiskey","Lighter","Coffee","Pipe","Apple","Meat On A Stick"],
+  Wildcard:["Tesla","Big Red Button","Torch","Dumbbell","Microphone","Clean","Square Up","Roll of Parchment","Bouquet","Cane","Envelope","Skull"],
+  Authority:["Gavel"],
+});
+const HEAD_MAP = invert({
+  ColdRes:["Siberian Wool","Chill Beanie","Ski Goggles","Raccoon Cap"],
+  HeatRes:["Straw Hat","Cowboy Hat","Cowgirl Hat","Fedora","Keffiyeh","Sheikh"],
+  Disease:["Beekeeper","Scientist","Chef"],
+  Repair:["Miner","Painter","Postman"],
+  Evasion:["Bandit","Nomad","Prisoner","Fox","Diver"],
+  Authority:["The Judge","Square Crown","General","Mr. T","WW2 Helmet","Canadian Police","Fez","Top Hat","Pilgrim"],
+  Route:["Pilot","Prospector","Farmer","Tyrolean","Bear"],
+  Cosmetic:["Bald I","Bald II","White Braids","Purple Double Buns","The Bob","Pretty In Pink","The Harley Quinn","Blue Pig Tails","Dreads","Pompadour","Slick Back Hair"],
+});
+const EYES_MAP = invert({
+  Sharp:["Awake","Sus","Cat","Dove","Monocle","Gold Sunnies","Victorian Sunnies","Squint","Doubtful","Wide Green","Deep Blue","Scowl"],
+  Impaired:["Dead","Blind","One Eye Blind","Cross Eyes","Black Squares","Demon","Closed","Tired","Bloodshot","Scarred","Eye Patch"],
+  Morale:["In Their Feels","Sad","Happy","Angry","Scared","Annoyed","Crazy","Puppy Eyes","Wink","Tense","Misfit","Snake Eyes","Gray Brows"],
+  Faction:["Cult Leader","Bandit","Nomad","Vert","Tiny","Large Teal","Blue"],
+});
+const FACE_MAP = invert({
+  PosSocial:["Candy Girl","Cheeky Girl","Bubbles","Elven Queen","Girl Next Door","Her Kiss","Smiling Queen","Trim and Proper","Normie","Double Braids"],
+  NegSocial:["Ahhhhh","Scream","Shocked","Annoyed","Teeth Check","Tongue Out","Teardrop Tat"],
+  FacialHair:["Thick Stache","Slick Beard","Dreaded Beard","Gold Beard","Goatie","French Fork","Rollie Stache","Braided Beard","Beard Only","Fu Manchu","Real Man Stache","Mutton Chops","White Goatie","Short-White Beard"],
+  Wisdom:["Old and Gray","Grey Burns","Prospector"],
+  Faction:["Prisoner","Bandit","Nomad","Pirate","Karate","Punk Girl"],
+  Toughness:["Strong Man","Scarred"],
+});
+const BG_MAP = invert({
+  Homestead:["Green Acres Sea","Green Acres Rose","Green Acres Lilly","Green Acres Turquoise","Green Acres Desert","Green Acres OG"],
+  Welcome:["Welcome Lilly","Welcome Sea","Welcome Green","Welcome Rose","Welcome Turquoise","Welcome Desert"],
+  Prairie:["Prairie Turquoise","Prairie Lilly","Prairie Desert","Prairie Green","Prairie Rose","Prairie Sea"],
+  Canyon:["Canyon Rose","Canyon Lilly","Canyon Turquoise","Canyon Desert","Canyon Green","Canyon Sea"],
+  Factory:["Factory Sea","Factory Lilly","Factory Desert","Factory Turquoise","Factory Rose","Factory Green"],
+  "Open Sky":["High Noon","Bright Sun"],
+});
+const CLASS_MULT = {Military:2, Maritime:2, Professional:1.8, Outlaw:1.5, Wanderer:1.5, Laborer:1.3, Social:1.3, Everyday:1, Legendary:4};
+
+function computeMemberFromAttributes(tokenId, attrs, image, idx){
+  const get = t=>{ const a=(attrs||[]).find(x=>x.trait_type===t); return a?a.value:null; };
+  const bodyB = BODY_MAP[get('Body')] || 'Everyday';
+  const handB = HAND_MAP[get('Hand Item')] || 'Comfort';
+  const headB = HEAD_MAP[get('Head')] || 'Cosmetic';
+  const eyesB = EYES_MAP[get('Eyes')] || 'Morale';
+  const faceB = FACE_MAP[get('Face')] || 'FacialHair';
+  const biome = BG_MAP[get('Background')] || 'Homestead';
+
+  let food=3, combat=3, repair=3, trade=3, morale=5, perception=3, river=3, resist=3;
+  if(bodyB==='Laborer') food+=4;
+  if(bodyB==='Military') combat+=4;
+  if(bodyB==='Outlaw'){ combat+=2; trade-=1; }
+  if(bodyB==='Professional') trade+=3;
+  if(bodyB==='Social') morale+=3;
+  if(bodyB==='Maritime') river+=5;
+  if(bodyB==='Wanderer') perception+=2;
+  if(handB==='Weapons'){ combat+=3; food+=1; }
+  if(handB==='Tools') repair+=4;
+  if(handB==='CompanionAnimals'){ morale+=2; food+=1; }
+  if(handB==='Valuables') trade+=2;
+  if(handB==='Comfort') morale+=1;
+  if(handB==='Authority') trade+=2;
+  if(headB==='ColdRes'||headB==='HeatRes'||headB==='Disease') resist+=3;
+  if(headB==='Repair') repair+=3;
+  if(headB==='Evasion'){ perception+=1; combat+=1; }
+  if(headB==='Authority') trade+=2;
+  if(headB==='Route') perception+=3;
+  if(eyesB==='Sharp') perception+=4;
+  if(eyesB==='Impaired') perception-=2;
+  if(faceB==='PosSocial') trade+=2;
+  if(faceB==='NegSocial') trade-=1;
+  if(faceB==='Wisdom') perception+=3;
+  if(faceB==='Toughness'){ combat+=1; resist+=1; }
+  if(biome==='Prairie') food+=2;
+  if(biome==='Canyon') resist+=2;
+  if(biome==='Factory') repair+=2;
+  if(biome==='Welcome') trade+=2;
+  if(biome==='Open Sky'){ river+=2; resist+=1; }
+  if(biome==='Homestead') morale+=2;
+
+  const clamp = v=>Math.max(0, Math.min(10, Math.round(v)));
+  const mult = CLASS_MULT[bodyB] || 1;
+  const member = {
+    id:"#"+tokenId, name:"Green Acres #"+tokenId, cls:bodyB, biome:biome,
+    rarity: mult>=2?'Rare':(mult>=1.5?'Uncommon':'Common'), mult,
+    food:clamp(food), combat:clamp(combat), repair:clamp(repair), trade:clamp(trade),
+    morale:clamp(morale), perception:clamp(perception), river:clamp(river), resist:clamp(resist),
+  };
+  member.pfp = makePfp(member, idx);
+  member.walk = makeWalkFrames(member, idx);
+  if(image){ member.image = image; member.imgEl = new Image(); member.imgEl.crossOrigin='anonymous'; member.imgEl.src = image; }
+  return member;
+}
+
+function loadEthers(){
+  if(window.ethers) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const s = document.createElement('script');
+    s.src = "https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js";
+    s.onload = ()=>resolve(); s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function connectWallet(){
+  const statusEl = document.getElementById('wallet-status');
+  const btn = document.getElementById('connect-wallet-btn');
+  if(!window.ethereum){
+    const inIframe = window.top !== window.self;
+    if(inIframe){
+      statusEl.textContent = "No wallet reachable — this looks like an embedded preview, and wallet extensions can't inject into a sandboxed iframe. Download this file and open it directly in your browser (ideally via a local server, e.g. 'python3 -m http.server') to connect. Showing the demo roster for now.";
+    } else if(location.protocol === 'file:'){
+      statusEl.textContent = "No wallet reachable on a file:// page — most wallet extensions block that by default. Either enable \"Allow access to file URLs\" for your wallet extension, or serve this file locally (e.g. 'python3 -m http.server') and open it via http://localhost. Showing the demo roster for now.";
+    } else {
+      statusEl.textContent = "No browser wallet detected — install MetaMask or a similar extension, unlock it, and try again. Showing the demo roster for now.";
+    }
+    return;
+  }
+  btn.disabled = true; btn.textContent = "Connecting…";
+  try{
+    await loadEthers();
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    const signer = provider.getSigner();
+    const address = await signer.getAddress();
+    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loading your Green Acres NFTs…`;
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+    const ids = await contract.tokensOfOwner(address);
+    if(!ids || ids.length===0){
+      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — no Green Acres NFTs found in this wallet. Showing the demo roster.`;
+      btn.disabled=false; btn.textContent="Connect Wallet"; return;
+    }
+    const capped = ids.slice(0, 100);
+    const fetched = [];
+    const BATCH_SIZE = 6;
+    for(let start=0; start<capped.length; start+=BATCH_SIZE){
+      const batch = capped.slice(start, start+BATCH_SIZE);
+      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loading your Green Acres NFTs… (${Math.min(start+BATCH_SIZE,capped.length)}/${capped.length})`;
+      const results = await Promise.allSettled(batch.map(async (bn, bi)=>{
+        const tokenId = bn.toString();
+        let uri = await contract.tokenURI(tokenId);
+        uri = uri.replace('ipfs://','https://ipfs.io/ipfs/');
+        const meta = await fetch(uri).then(r=>r.json());
+        const img = meta.image ? meta.image.replace('ipfs://','https://ipfs.io/ipfs/') : null;
+        return computeMemberFromAttributes(tokenId, meta.attributes, img, start+bi);
+      }));
+      results.forEach(r=>{ if(r.status==='fulfilled') fetched.push(r.value); else console.warn('Could not load a token', r.reason); });
+    }
+    if(fetched.length===0){
+      statusEl.textContent = "Connected, but couldn't load metadata for your Acres (network/IPFS gateway issue) — showing the demo roster.";
+      btn.disabled=false; btn.textContent="Connect Wallet"; return;
+    }
+    fetched.sort((a,b)=> b.mult - a.mult || a.id.localeCompare(b.id));
+    WALLET_ROSTER = fetched; usingWallet = true;
+    selected = []; leaderIdx = null;
+    const cappedNote = ids.length>100 ? ` (showing the first 100 of ${ids.length} held)` : '';
+    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Stats are derived live from their on-chain traits (rarity is an approximate class-based multiplier — true mint-rarity ranking isn't computed client-side in this prototype).`;
+    renderRoster();
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = "Wallet connection failed or was rejected — showing the demo roster.";
+  }
+  btn.disabled=false; btn.textContent="Connect Wallet";
+}
+
+/* ============================================================
+   PARTY SELECT
+   ============================================================ */
+function renderRoster(){
+  const el = document.getElementById('roster');
+  const roster = getCurrentRoster();
+  el.innerHTML = roster.map((m,i)=>{
+    const plus = {Common:"", Uncommon:"+", Rare:"++", Epic:"+++", Legendary:"++++"}[m.rarity] || "";
+    const imgSrc = m.image || m.pfp;
+    const pixelCls = m.image ? "" : "pixel";
+    return `<div class="card" id="card-${i}" onclick="toggleSelect(${i})">
+      <span class="tag ${m.rarity==='Legendary'?'legendary':(m.rarity==='Rare'||m.rarity==='Epic'?'rare':'')}">${m.rarity}${plus}</span>
+      <div><img class="pfp ${pixelCls}" src="${imgSrc}" alt="${m.name}"></div>
+      <h4>${m.name}</h4>
+      <div class="muted" style="font-size:10px;">${m.id} · ${m.biome}</div>
+      <div class="statgrid-mini">
+        <div class="stat-mini"><span>Food</span><span>${m.food}</span></div>
+        <div class="stat-mini"><span>Combat</span><span>${m.combat}</span></div>
+        <div class="stat-mini"><span>Repair</span><span>${m.repair}</span></div>
+        <div class="stat-mini"><span>Trade</span><span>${m.trade}</span></div>
+        <div class="stat-mini"><span>River</span><span>${m.river}</span></div>
+      </div>
+      <div class="leader-pick" onclick="event.stopPropagation(); setLeader(${i})">Set as Leader</div>
+    </div>`;
+  }).join('');
+}
+function toggleSelect(i){
+  const pos = selected.indexOf(i);
+  if(pos>=0){ selected.splice(pos,1); if(leaderIdx===i) leaderIdx=null; }
+  else { if(selected.length>=4) return; selected.push(i); }
+  updatePartyUI();
+}
+function setLeader(i){ if(selected.indexOf(i)<0) return; leaderIdx = i; updatePartyUI(); }
+function updatePartyUI(){
+  const roster = getCurrentRoster();
+  roster.forEach((m,i)=>{
+    const card = document.getElementById('card-'+i);
+    if(!card) return;
+    card.classList.toggle('selected', selected.indexOf(i)>=0);
+    card.classList.toggle('leader', leaderIdx===i);
+  });
+  document.getElementById('party-status').textContent = `Selected: ${selected.length} / 4  •  Leader: ${leaderIdx!==null?roster[leaderIdx].name:'none'}`;
+  document.getElementById('confirm-party-btn').disabled = !(selected.length===4 && leaderIdx!==null);
+}
+function goToPartySelect(){ show('screen-party'); renderRoster(); startMusic(); }
+
+/* ============================================================
+   OUTFITTING
+   ============================================================ */
+let outfitPurchases = {oxen:0, food:0, clothing:0, ammo:0, parts:0};
+
+function goToOutfitting(){
+  const roster = getCurrentRoster();
+  const members = selected.map(i=>({...roster[i], health:100, alive:true}));
+  const leader = members.find(m=>m.id===roster[leaderIdx].id);
+  window._pendingParty = {members, leader};
+  outfitBudget = STARTING_CASH[leader.mult] || 500;
+  outfitPurchases = {oxen:0, food:0, clothing:0, ammo:0, parts:0};
+  document.getElementById('outfit-intro').textContent =
+    `Leader ${leader.name} (${leader.rarity}, ×${leader.mult} multiplier) sets your outfitting budget: ${outfitBudget} Ξ. Rarer leaders score bigger but start leaner — spend wisely.`;
+  renderOutfitStore();
+  show('screen-outfit');
+}
+
+function renderOutfitStore(){
+  const el = document.getElementById('outfit-store');
+  el.innerHTML = `
+    <div class="item-name">Extra Oxen <div class="item-price">${PRICES.oxen} Ξ each · base 2 free · faster pace</div></div>
+    <div class="qty"><button class="btn small" onclick="adjOutfit('oxen',-1)">−</button><input type="text" id="q-oxen" readonly value="0"><button class="btn small" onclick="adjOutfit('oxen',1)">+</button></div>
+    <div></div><div></div>
+    <div class="item-name">Food (50 lb) <div class="item-price">${PRICES.food50} Ξ per 50 lb · base 100 lb free</div></div>
+    <div class="qty"><button class="btn small" onclick="adjOutfit('food',-1)">−</button><input type="text" id="q-food" readonly value="0"><button class="btn small" onclick="adjOutfit('food',1)">+</button></div>
+    <div></div><div></div>
+    <div class="item-name">Clothing Sets <div class="item-price">${PRICES.clothing} Ξ each · +0.5 hazard resist (cap +3)</div></div>
+    <div class="qty"><button class="btn small" onclick="adjOutfit('clothing',-1)">−</button><input type="text" id="q-clothing" readonly value="0"><button class="btn small" onclick="adjOutfit('clothing',1)">+</button></div>
+    <div></div><div></div>
+    <div class="item-name">Ammo Box (20) <div class="item-price">${PRICES.ammoBox} Ξ each · base 40 free</div></div>
+    <div class="qty"><button class="btn small" onclick="adjOutfit('ammo',-1)">−</button><input type="text" id="q-ammo" readonly value="0"><button class="btn small" onclick="adjOutfit('ammo',1)">+</button></div>
+    <div></div><div></div>
+    <div class="item-name">Spare Parts <div class="item-price">${PRICES.parts} Ξ each · base 1 free</div></div>
+    <div class="qty"><button class="btn small" onclick="adjOutfit('parts',-1)">−</button><input type="text" id="q-parts" readonly value="0"><button class="btn small" onclick="adjOutfit('parts',1)">+</button></div>
+  `;
+  updateOutfitDisplay();
+}
+function outfitCost(){
+  return outfitPurchases.oxen*PRICES.oxen + outfitPurchases.food*PRICES.food50 +
+         outfitPurchases.clothing*PRICES.clothing + outfitPurchases.ammo*PRICES.ammoBox + outfitPurchases.parts*PRICES.parts;
+}
+function adjOutfit(key, delta){
+  const priceKey = key==='food' ? 'food50' : (key==='ammo' ? 'ammoBox' : key);
+  const next = outfitPurchases[key]+delta;
+  if(next<0) return;
+  const trialCost = outfitCost() - outfitPurchases[key]*PRICES[priceKey] + next*PRICES[priceKey];
+  if(trialCost>outfitBudget) return;
+  outfitPurchases[key]=next;
+  updateOutfitDisplay();
+}
+function updateOutfitDisplay(){
+  document.getElementById('q-oxen').value = outfitPurchases.oxen;
+  document.getElementById('q-food').value = outfitPurchases.food;
+  document.getElementById('q-clothing').value = outfitPurchases.clothing;
+  document.getElementById('q-ammo').value = outfitPurchases.ammo;
+  document.getElementById('q-parts').value = outfitPurchases.parts;
+  const remaining = outfitBudget - outfitCost();
+  const rem = document.getElementById('outfit-remaining');
+  rem.textContent = remaining;
+  rem.style.color = remaining<0 ? '#b23a2f' : '#2b2318';
+  document.getElementById('depart-btn').disabled = remaining<0;
+}
+
+function departTrail(){
+  const {members, leader} = window._pendingParty;
+  const cost = outfitCost();
+  const biomeCounts = {}; members.forEach(m=>biomeCounts[m.biome]=(biomeCounts[m.biome]||0)+1);
+  const stackBonus = Math.max(...Object.values(biomeCounts)) - 1;
+
+  state = {
+    day:1, distance:0,
+    food: 100 + outfitPurchases.food*50,
+    cash: outfitBudget - cost,
+    ammo: 40 + outfitPurchases.ammo*20,
+    parts: 1 + outfitPurchases.parts,
+    oxen: 2 + outfitPurchases.oxen,
+    clothingBonus: Math.min(3, outfitPurchases.clothing*0.5),
+    members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
+    biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
+    sceneMode:'trail', foragesToday:0,
+  };
+  logMsg(`Party departs the Genesis Homestead with ${state.oxen} oxen, ${state.food}lb food, ${state.ammo} ammo, ${state.parts} spare parts.`, 'chain');
+  if(stackBonus>0){
+    const sharedBiome = Object.entries(biomeCounts).sort((a,b)=>b[1]-a[1])[0][0];
+    logMsg(`${biomeCounts[sharedBiome]} party members share the ${sharedBiome} biome — passive bonus stacked.`, 'good');
+  }
+  show('screen-trail');
+  renderTrail();
+  startSceneLoop();
+}
+
+function partyStat(key){
+  const alive = state.members.filter(m=>m.alive);
+  if(alive.length===0) return 0;
+  if(key==='morale') return alive.reduce((s,m)=>s+m.morale,0)/alive.length;
+  if(key==='resist') return Math.min(10, Math.max(...alive.map(m=>m.resist)) + state.clothingBonus);
+  return Math.max(...alive.map(m=>m[key]));
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function show(id){
+  ['screen-title','screen-party','screen-outfit','screen-trail','screen-end'].forEach(s=>{
+    document.getElementById(s).classList.toggle('hide', s!==id);
+  });
+}
+/* ============================================================
+   TRAVELING SCENE — animated wagon, oxen, and walking party
+   ============================================================ */
+let sceneRAF = null, sceneTime = 0, sceneGroundOffset = 0, sceneBurstUntil = 0;
+function startSceneLoop(){
+  cancelAnimationFrame(sceneRAF);
+  sceneTime = 0; sceneGroundOffset = 0;
+  const loop = ()=>{
+    sceneTime += 1;
+    const traveling = performance.now() < sceneBurstUntil;
+    sceneGroundOffset += traveling ? 5 : 1.2;
+    drawTravelScene(traveling);
+    sceneRAF = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function stopSceneLoop(){ cancelAnimationFrame(sceneRAF); }
+
+function drawTravelScene(traveling){
+  const canvas = document.getElementById('travelScene');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const mode = state ? state.sceneMode : 'trail';
+
+  // ---- sky + base ground, tinted per scene mode ----
+  const skyTop = {trail:'#bfe3e0', river:'#a9d4e6', town:'#e8dcc0', hazard:'#8a7360', plains:'#d7ecc9', fork:'#c9dfd0', legendary:'#efe0a8'}[mode] || '#bfe3e0';
+  const skyBot = {trail:'#eaf6e6', river:'#eaf6f0', town:'#f3ead2', hazard:'#b89a7c', plains:'#f2f8e6', fork:'#eaf6e6', legendary:'#fff3c4'}[mode] || '#eaf6e6';
+  const grad = ctx.createLinearGradient(0,0,0,h*0.62);
+  grad.addColorStop(0,skyTop); grad.addColorStop(1,skyBot);
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h*0.62);
+
+  ctx.fillStyle = mode==='hazard' ? '#6b5a46' : '#a9cf8f';
+  ctx.beginPath(); ctx.moveTo(0,h*0.6);
+  for(let x=0;x<=w;x+=30){
+    const hillOff = (sceneGroundOffset*0.15)%60;
+    const y = h*0.5 + Math.sin((x+hillOff)*0.03)*8;
+    ctx.lineTo(x,y);
+  }
+  ctx.lineTo(w,h*0.62); ctx.lineTo(0,h*0.62); ctx.closePath(); ctx.fill();
+
+  const groundColor = {trail:'#7a9c5e', river:'#4a90a4', town:'#a68a5c', hazard:'#5c4a38', plains:'#8fb56b', fork:'#7a9c5e', legendary:'#c9a227'}[mode] || '#7a9c5e';
+  ctx.fillStyle = groundColor; ctx.fillRect(0,h*0.6,w,h*0.4);
+
+  // ---- scene-specific storytelling elements ----
+  if(mode==='river'){
+    // water ripple bands
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth=2;
+    for(let i=0;i<4;i++){
+      const ry = h*0.68 + i*10;
+      ctx.beginPath();
+      for(let x=0;x<w;x+=8){ const yy = ry + Math.sin((x+sceneGroundOffset*2+i*20)*0.08)*2; x===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); }
+      ctx.stroke();
+    }
+  } else if(mode==='town'){
+    // building silhouettes in the background
+    ctx.fillStyle = '#5b3a29';
+    [ [40,50],[110,60],[520,55],[580,45] ].forEach(([bx,bw])=>{
+      ctx.fillRect(bx, h*0.6-34, bw*0.6, 34);
+      ctx.fillStyle = '#b23a2f'; ctx.fillRect(bx, h*0.6-40, bw*0.6, 8); ctx.fillStyle = '#5b3a29';
+    });
+  } else if(mode==='hazard'){
+    // dust particles
+    ctx.fillStyle = 'rgba(160,120,80,.35)';
+    for(let i=0;i<10;i++){
+      const px = (sceneGroundOffset*3 + i*70) % (w+60) - 30;
+      const py = h*0.35 + (i%4)*14;
+      ctx.beginPath(); ctx.arc(px,py,10,0,Math.PI*2); ctx.fill();
+    }
+  } else if(mode==='plains'){
+    // distant grazing animal silhouette
+    ctx.fillStyle = 'rgba(90,70,50,.5)';
+    drawSpriteCentered(ctx, DEER_ROWS, {A:'rgba(90,70,50,.5)',B:'rgba(90,70,50,.5)',K:'rgba(90,70,50,.5)'}, w-80, h*0.55, 3);
+  } else if(mode==='fork'){
+    ctx.strokeStyle = 'rgba(90,70,50,.5)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(w*0.5,h*0.62); ctx.lineTo(w*0.25,h); ctx.moveTo(w*0.5,h*0.62); ctx.lineTo(w*0.75,h); ctx.stroke();
+    drawSpriteCentered(ctx, ICONS.SIGNPOST.rows, ICONS.SIGNPOST.pal, w*0.5, h*0.5, 3);
+  } else if(mode==='legendary'){
+    ctx.fillStyle = 'rgba(255,220,120,.25)'; ctx.fillRect(0,0,w,h);
+    for(let i=0;i<8;i++){
+      const gx = (i*83 + sceneGroundOffset*1.5) % w;
+      const gy = h*0.3 + (i%3)*20;
+      ctx.fillStyle = 'rgba(255,240,180,.8)';
+      ctx.beginPath(); ctx.arc(gx,gy,2,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  const stripe = 26;
+  for(let x=-stripe+(sceneGroundOffset%stripe); x<w; x+=stripe){ ctx.fillRect(x, h*0.6, stripe/2, h*0.4); }
+
+  const bob = i => Math.sin(sceneTime*0.15 + i*0.7) * (traveling?4:1.3);
+  const legToggle = Math.floor(sceneTime/(traveling?6:16)) % 2 === 0;
+
+  // ---- convoy: party trails behind, wagon in the middle, oxen lead up front ----
+  if(state){
+    let wi = 0;
+    const alive = state.members.filter(m=>m.alive);
+    alive.forEach(m=>{
+      const x = 46 + wi*42;
+      const y = h*0.82 + bob(wi);
+      if(m.imgEl && m.imgEl.complete && m.imgEl.naturalWidth>0){
+        ctx.drawImage(m.imgEl, x-16, y-20, 34, 34);
+      } else if(m.walk){
+        const rows = legToggle ? m.walk.rowsA : m.walk.rowsB;
+        drawSpriteCentered(ctx, rows, m.walk.palette, x, y, 3.6);
+      }
+      if(m.id===state.leaderId){
+        ctx.fillStyle = '#c9a227'; ctx.font = 'bold 14px monospace'; ctx.textAlign='center';
+        ctx.fillText('\u2605', x, y-26);
+      }
+      wi++;
+    });
+  }
+  drawSpriteCentered(ctx, WAGON_ROWS, WAGON_PAL, 240, h*0.68+bob(5), 5);
+  drawSpriteCentered(ctx, OX_ROWS, OX_PAL, 330, h*0.8+bob(6), 4);
+  drawSpriteCentered(ctx, OX_ROWS, OX_PAL, 366, h*0.8+bob(7), 4);
+}
+
+function renderTrail(){
+  document.getElementById('trail-leader-name').textContent = state.leaderClass;
+  document.getElementById('stat-day').textContent = state.day;
+  document.getElementById('stat-multiplier').textContent = '×'+state.leaderMultiplier;
+  document.getElementById('stat-distance').textContent = Math.floor(state.distance);
+  document.getElementById('stat-food').textContent = Math.max(0,Math.floor(state.food));
+  document.getElementById('stat-cash').textContent = Math.max(0,Math.floor(state.cash));
+  document.getElementById('stat-ammo').textContent = Math.max(0,state.ammo);
+  document.getElementById('stat-parts').textContent = Math.max(0,state.parts);
+  document.getElementById('stat-oxen').textContent = state.oxen;
+
+  const map = document.getElementById('trailmap');
+  const pct = Math.min(100, state.distance/TRAIL_GOAL*100);
+  let lmHtml = '';
+  LANDMARKS.forEach(lm=>{
+    const p = Math.min(100, lm.mile/TRAIL_GOAL*100);
+    lmHtml += `<img class="lm pixel" style="left:${p}%" src="${SPRITE_URLS[lm.icon]}" width="20" height="20">
+               <div class="lm-label" style="left:${p}%">${lm.name}</div>`;
+  });
+  map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
+
+  const hb = document.getElementById('healthbars');
+  hb.innerHTML = state.members.map(m=>{
+    const pct2 = Math.max(0,m.health);
+    const imgSrc = m.image || m.pfp;
+    const pixelCls = m.image ? "" : "pixel";
+    return `<div class="hb-row ${m.alive?'':'dead'}">
+      <img class="${pixelCls}" src="${imgSrc}">
+      <div>${m.id===state.leaderId?'\u2605 ':''}${m.name}</div>
+      <div class="hb-track"><div class="hb-fill ${pct2<35?'low':''}" style="width:${pct2}%"></div></div>
+      <div>${Math.floor(pct2)}</div>
+    </div>`;
+  }).join('');
+
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = state.log.slice().reverse().map(l=>`<div class="${l.cls||''}">${l.text}</div>`).join('');
+}
+function logMsg(text, cls){
+  state.log.push({text:`Day ${state.day} — ${text}`, cls: cls==='bad'?'ev-bad':cls==='good'?'ev-good':cls==='chain'?'ev-chain':''});
+}
+
+/* ============================================================
+   TRAVEL LOOP
+   ============================================================ */
+function travelStretch(){
+  if(state.over) return;
+  sceneBurstUntil = performance.now() + 1400;
+  const paceKey = document.getElementById('pace-select').value;
+  const rationKey = document.getElementById('ration-select').value;
+  const pace = PACE[paceKey], ration = RATIONS[rationKey];
+
+  const oxenAdj = Math.max(-4, Math.min(6, (state.oxen-2)*1));
+  let miles = (pace.milesMin+oxenAdj) + Math.random()*((pace.milesMax+oxenAdj)-(pace.milesMin+oxenAdj));
+  miles = Math.max(4, miles);
+  state.distance += miles;
+  state.day += pace.daysPerStretch;
+  state.foragesToday = 0;
+
+  const aliveCount = state.members.filter(m=>m.alive).length;
+  const consumed = ration.perMember * aliveCount;
+  state.food -= consumed;
+  if(state.food<0){ state.food=0; applyHealth(-8, "Rations ran out — the party goes hungry."); }
+  applyHealth(ration.healthDelta, null);
+  if(pace.fatigue>0) applyHealth(-pace.fatigue, null);
+
+  const nextIdx = state.passedLandmarks;
+  const lm = nextIdx<LANDMARKS.length && LANDMARKS[nextIdx].mile<=state.distance ? LANDMARKS[nextIdx] : null;
+  if(lm){ state.passedLandmarks++; triggerLandmark(lm); }
+  else { rollRandomEvent(pace.eventMod); }
+
+  checkEndConditions();
+  renderTrail();
+}
+
+function applyHealth(delta, msg){
+  state.members.forEach(m=>{
+    if(!m.alive) return;
+    let d = delta;
+    if(delta<0){
+      const effResist = Math.min(10, m.resist + (state.clothingBonus||0));
+      const variance = 0.85 + Math.random()*0.3; // each member weathers it a little differently
+      d = delta * (1 - (effResist/10)*0.5) * variance;
+    }
+    m.health = Math.min(100, Math.max(0, m.health + d));
+    if(m.health<=0){ m.alive=false; logMsg(`${m.name} could not continue and was left at the trailside.`, 'bad'); }
+  });
+  if(msg) logMsg(msg, delta<0?'bad':'good');
+}
+
+function rollRandomEvent(mod){
+  const r = Math.random();
+  if(r<0.40) return;
+  if(r<0.50){
+    const gain = 15+Math.floor(Math.random()*20); state.food += gain;
+    logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
+  } else if(r<0.65){
+    const resist = partyStat('resist');
+    const dmg = Math.max(2, Math.round((8*mod) - resist*0.5));
+    applyHealth(-dmg, `Sickness sweeps the wagon (resist ${resist.toFixed(1)} softened it).`);
+  } else if(r<0.80){
+    const repair = partyStat('repair');
+    if(state.parts>0 && repair>=4){
+      state.parts--;
+      logMsg(`Axle trouble — repaired quickly using a spare part (Repair ${repair.toFixed(1)}).`, 'good');
+    } else if(state.parts<=0){
+      const dmg = Math.max(2, Math.round(6 - repair*0.4));
+      applyHealth(-dmg, `Wagon trouble strikes with no spare parts on hand (Repair ${repair.toFixed(1)} limited the damage).`);
+      state.distance = Math.max(0, state.distance-8);
+    } else {
+      applyHealth(-5, `Wagon trouble slows the party — Repair ${repair.toFixed(1)} isn't quite enough for a clean fix.`);
+      state.distance = Math.max(0, state.distance-8);
+    }
+  } else if(r<0.92){
+    const perception = partyStat('perception');
+    if(Math.random()*10 < perception){ logMsg(`A thief was spotted and driven off (Perception ${perception.toFixed(1)}).`, 'good'); }
+    else { const loss = Math.min(state.cash, 10+Math.floor(Math.random()*20)); state.cash -= loss; logMsg(`Robbed in the night — lost ${loss} \u039e.`, 'bad'); }
+  } else {
+    const resist = partyStat('resist');
+    const dmg = Math.max(2, Math.round((7*mod) - resist*0.4));
+    applyHealth(-dmg, `A storm rolls through (resist ${resist.toFixed(1)} softened it).`);
+  }
+}
+
+/* ============================================================
+   LANDMARK EVENTS: river / plains / town / hazard / fork / legendary
+   ============================================================ */
+/* ============================================================
+   PLAYER ACTIONS: rest, forage, hunt on demand
+   ============================================================ */
+function restDay(){
+  if(state.over) return;
+  state.day += 1;
+  state.foragesToday = 0;
+  const aliveCount = state.members.filter(m=>m.alive).length;
+  const consumed = 2 * aliveCount;
+  state.food -= consumed;
+  if(state.food<0) state.food = 0;
+  state.members.forEach(m=>{ if(m.alive) m.health = Math.min(100, m.health + 10); });
+  logMsg("The party rests for a day, tending wounds and mending gear (+10 health each).", 'good');
+  checkEndConditions();
+  renderTrail();
+}
+function forage(){
+  if(state.over) return;
+  if(state.foragesToday>=1){ logMsg("Already foraged today — travel or rest before trying again.", 'bad'); renderTrail(); return; }
+  state.foragesToday++;
+  const foodStat = partyStat('food'), perception = partyStat('perception');
+  const roll = Math.random()*10;
+  if(roll < (foodStat+perception)/2){
+    const gain = 10+Math.floor(Math.random()*15);
+    state.food += gain;
+    logMsg(`Foraged along the trailside — found ${gain} lb of food (Food ${foodStat.toFixed(1)}, Perception ${perception.toFixed(1)}).`, 'good');
+  } else {
+    logMsg(`Foraged the roadside but came up empty-handed.`, 'bad');
+  }
+  renderTrail();
+}
+function huntAnytime(){
+  if(state.over) return;
+  if(state.ammo<=0){ logMsg("No ammo left to hunt — restock at the next town.", 'bad'); renderTrail(); return; }
+  pendingLandmark = {name:"Trailside Hunt", icon:"PAW", type:"plains"};
+  state.sceneMode = 'plains';
+  openHunting(pendingLandmark);
+}
+
+let pendingLandmark = null;
+function triggerLandmark(lm){
+  pendingLandmark = lm;
+  if(lm.type==='river'){ state.sceneMode='river'; openFishing(lm); }
+  else if(lm.type==='plains'){ state.sceneMode='plains'; openHunting(lm); }
+  else if(lm.type==='town'){ state.sceneMode='town'; openTown(lm); }
+  else if(lm.type==='fork'){ state.sceneMode='fork'; openFork(lm); }
+  else if(lm.type==='hazard'){
+    state.sceneMode='hazard';
+    const resist = partyStat('resist'), repair = partyStat('repair');
+    const mitig = (resist+repair)/2;
+    const dmg = Math.max(3, Math.round(14 - mitig*0.8));
+    applyHealth(-dmg, `${lm.name}: a major hazard tests the party (mitigation ${mitig.toFixed(1)}).`);
+    renderTrail();
+    setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
+  } else if(lm.type==='legendary'){
+    state.sceneMode='legendary';
+    const ownsLegendary = state.members.some(m=>m.rarity==='Legendary');
+    if(ownsLegendary){ logMsg(`${lm.name}: your legendary party member is recognized by the trail spirits — full party heal.`, 'chain'); state.members.forEach(m=>{ if(m.alive) m.health = 100; }); }
+    else { state.food += 40; state.cash += 30; logMsg(`${lm.name}: a legendary 1/1 wanderer passes through camp and leaves a gift (+40 food, +30 \u039e).`, 'chain'); }
+    renderTrail();
+    setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
+  }
+}
+
+/* ---- Town: shop + NPC ---- */
+function openTown(lm){
+  document.getElementById('town-title').innerHTML = `<img class="pixel" src="${SPRITE_URLS.STORE}" width="20" height="20"> ${lm.name}`;
+  document.getElementById('town-quote').textContent = NPC_QUOTES[Math.floor(Math.random()*NPC_QUOTES.length)];
+  renderTownStore();
+  document.getElementById('modal-town').classList.remove('hide');
+}
+function renderTownStore(){
+  document.getElementById('town-store').innerHTML = `
+    <div class="item-name">Food (50 lb) <div class="item-price">${PRICES.food50} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('food',50,${PRICES.food50})">Buy</button><div></div>
+    <div class="item-name">Ammo Box (20) <div class="item-price">${PRICES.ammoBox} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('ammo',20,${PRICES.ammoBox})">Buy</button><div></div>
+    <div class="item-name">Spare Part <div class="item-price">${PRICES.parts} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('parts',1,${PRICES.parts})">Buy</button><div></div>
+  `;
+  document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
+}
+function townBuy(key, amt, cost){
+  if(state.cash<cost) return;
+  state.cash -= cost;
+  if(key==='food') state.food += amt;
+  if(key==='ammo') state.ammo += amt;
+  if(key==='parts') state.parts += amt;
+  document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
+}
+function leaveTown(){
+  document.getElementById('modal-town').classList.add('hide');
+  state.sceneMode='trail';
+  logMsg(`${pendingLandmark.name}: restocked at the general store.`, 'good');
+  renderTrail();
+}
+
+/* ---- Fork: route choice ---- */
+const FORKS = {
+  "The Diamond Hands Split": {
+    desc:"Two ways forward. Cut through rough canyon shortcut, or hold the safer prairie course.",
+    options:[
+      {label:"Cut Through the Canyon", detail:"+50 bonus miles instantly, but a rockslide risk (\u22126 health, resist mitigated).", apply:function(){ state.distance+=50; applyHealth(-6, "Canyon shortcut: a rockslide clips the wagon."); }},
+      {label:"Hold the Prairie Course", detail:"No shortcut, but good grazing land (+20 food).", apply:function(){ state.food+=20; logMsg("Prairie course: good grazing found along the way (+20 food).", 'good'); }},
+    ]
+  },
+  "Cold Storage Crossing": {
+    desc:"Cold Storage Caverns cut straight through — but they're unstable. Or swing wide via Ledger Lookout.",
+    options:[
+      {label:"Brave Cold Storage Caverns", detail:"50/50: either a hidden cache (+60 \u039e) or a cave-in (\u221210 health, resist mitigated).", apply:function(){
+        if(Math.random()<0.5){ state.cash+=60; logMsg("Cold Storage Caverns: found a hidden cache (+60 \u039e).", 'good'); }
+        else { applyHealth(-10, "Cold Storage Caverns: a cave-in shakes the party."); }
+      }},
+      {label:"Detour via Ledger Lookout", detail:"Costs extra miles on the next stretches, but guaranteed safe passage and a small trade bonus (+15 \u039e).", apply:function(){
+        LANDMARKS.forEach(function(l){ if(l.mile>1500) l.mile+=40; });
+        state.cash+=15; logMsg("Ledger Lookout: a longer but safe detour, with a little trade on the side (+15 \u039e).", 'good');
+      }},
+    ]
+  }
+};
+function openFork(lm){
+  const fork = FORKS[lm.name];
+  document.getElementById('fork-title').innerHTML = `<img class="pixel" src="${SPRITE_URLS.SIGNPOST}" width="20" height="20"> ${lm.name}`;
+  document.getElementById('fork-desc').textContent = fork.desc;
+  document.getElementById('fork-options').innerHTML = fork.options.map(function(o,i){
+    return `<div class="fork-card" onclick="chooseFork(${i})"><h4>${o.label}</h4><div class="muted">${o.detail}</div></div>`;
+  }).join('');
+  window._activeFork = fork;
+  document.getElementById('modal-fork').classList.remove('hide');
+}
+function chooseFork(i){
+  window._activeFork.options[i].apply();
+  document.getElementById('modal-fork').classList.add('hide');
+  state.sceneMode='trail';
+  renderTrail();
+}
+
+/* ============================================================
+   HUNTING MINIGAME
+   ============================================================ */
+let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntTimeLeft=8, huntTimerId=null, huntSpawnId=null;
+const ANIMALS = [{rows:DEER_ROWS,pal:DEER_PAL},{rows:RABBIT_ROWS,pal:RABBIT_PAL},{rows:BISON_ROWS,pal:BISON_PAL},{rows:TURKEY_ROWS,pal:TURKEY_PAL}];
+
+function openHunting(lm){
+  document.getElementById('hunt-icon').src = SPRITE_URLS[lm.icon] || SPRITE_URLS.PAW;
+  document.getElementById('hunt-title').textContent = lm.name + " — Hunting";
+  document.getElementById('modal-hunt').classList.remove('hide');
+  huntHits=0; huntTimeLeft=8; huntTargets=[];
+  document.getElementById('hunt-hits').textContent = '0';
+  document.getElementById('hunt-ammo').textContent = state.ammo;
+  document.getElementById('hunt-timer').textContent = '8';
+  document.getElementById('hunt-start-btn').textContent = 'Start Hunt';
+  document.getElementById('hunt-start-btn').disabled=false;
+  const canvas = document.getElementById('huntCanvas');
+  huntCtx = canvas.getContext('2d');
+  huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
+  canvas.onclick = handleHuntClick;
+}
+function startHunt(){
+  document.getElementById('hunt-start-btn').disabled = true;
+  huntActive = true;
+  const combatBonus = partyStat('combat');
+  const spawnRate = Math.max(500, 900 - combatBonus*30);
+  huntSpawnId = setInterval(spawnTarget, spawnRate);
+  huntTimerId = setInterval(function(){
+    huntTimeLeft--; document.getElementById('hunt-timer').textContent = huntTimeLeft;
+    drawHunt(); if(huntTimeLeft<=0) endHunt();
+  }, 1000);
+  drawHunt();
+}
+function spawnTarget(){
+  const canvas = document.getElementById('huntCanvas');
+  const kind = ANIMALS[Math.floor(Math.random()*ANIMALS.length)];
+  huntTargets.push({x:30+Math.random()*(canvas.width-60), y:30+Math.random()*(canvas.height-60), r:20, kind:kind, born:Date.now(), life:1400+Math.random()*600});
+}
+function drawHunt(){
+  const canvas = document.getElementById('huntCanvas');
+  huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
+  const now = Date.now();
+  huntTargets = huntTargets.filter(function(t){ return now - t.born < t.life; });
+  huntTargets.forEach(function(t){ drawSpriteCentered(huntCtx, t.kind.rows, t.kind.pal, t.x, t.y, 4); });
+}
+function handleHuntClick(e){
+  if(!huntActive) return;
+  if(state.ammo<=0){ return; }
+  state.ammo--; document.getElementById('hunt-ammo').textContent = state.ammo;
+  const rect = e.target.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  for(let i=huntTargets.length-1;i>=0;i--){
+    const t = huntTargets[i];
+    if(Math.hypot(t.x-x,t.y-y)<t.r+10){ huntTargets.splice(i,1); huntHits++; document.getElementById('hunt-hits').textContent = huntHits; drawHunt(); break; }
+  }
+}
+function endHunt(){
+  huntActive=false; clearInterval(huntSpawnId); clearInterval(huntTimerId);
+  document.getElementById('modal-hunt').classList.add('hide');
+  state.sceneMode='trail';
+  const foodStat = partyStat('food');
+  const gain = Math.round(huntHits*12 + foodStat*4);
+  state.food += gain;
+  logMsg(`${pendingLandmark.name}: hunted ${huntHits} game (+${gain} food, Food stat ${foodStat.toFixed(1)}).`, 'good');
+  renderTrail();
+}
+
+/* ============================================================
+   FISHING MINIGAME
+   ============================================================ */
+let fishRound=0, fishCatches=0, fishPos=0, fishDir=1, fishAnim=null, fishZoneStart=0, fishZoneWidth=0;
+function openFishing(lm){
+  document.getElementById('fish-icon').src = SPRITE_URLS.FISH;
+  document.getElementById('fish-title').textContent = lm.name + " — Fishing";
+  document.getElementById('modal-fish').classList.remove('hide');
+  fishRound=0; fishCatches=0; document.getElementById('fish-catches').textContent='0';
+  const riverStat = partyStat('river');
+  fishZoneWidth = 18 + riverStat*2;
+  nextFishRound();
+}
+function nextFishRound(){
+  fishRound++;
+  document.getElementById('fish-round-label').textContent = `Cast ${fishRound} / 5`;
+  if(fishRound>5){ endFishing(); return; }
+  fishZoneStart = 10 + Math.random()*(80-fishZoneWidth/1.2);
+  document.getElementById('fish-zone').style.left = fishZoneStart+'%';
+  document.getElementById('fish-zone').style.width = fishZoneWidth+'%';
+  fishPos=0; fishDir=1;
+  document.getElementById('fish-reel-btn').disabled=false;
+  cancelAnimationFrame(fishAnim); animateFish();
+}
+function animateFish(){
+  fishPos += fishDir*1.6;
+  if(fishPos>=100){fishPos=100;fishDir=-1;} if(fishPos<=0){fishPos=0;fishDir=1;}
+  document.getElementById('fish-marker').style.left = fishPos+'%';
+  fishAnim = requestAnimationFrame(animateFish);
+}
+function reelFish(){
+  document.getElementById('fish-reel-btn').disabled=true;
+  cancelAnimationFrame(fishAnim);
+  const inZone = fishPos>=fishZoneStart && fishPos<=fishZoneStart+fishZoneWidth;
+  if(inZone) fishCatches++;
+  document.getElementById('fish-catches').textContent = fishCatches;
+  setTimeout(nextFishRound, 500);
+}
+function endFishing(){
+  document.getElementById('modal-fish').classList.add('hide');
+  state.sceneMode='trail';
+  const riverStat = partyStat('river');
+  const gain = Math.round(fishCatches*16 + riverStat*3);
+  state.food += gain;
+  logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 catches (+${gain} food, River stat ${riverStat.toFixed(1)}).`, 'good');
+  renderTrail();
+}
+
+/* ============================================================
+   END CONDITIONS & SCORING
+   ============================================================ */
+function checkEndConditions(){
+  const anyAlive = state.members.some(m=>m.alive);
+  if(!anyAlive){ state.over=true; endRun(false); return; }
+  const leaderMember = state.members.find(m=>m.id===state.leaderId);
+  const leaderAlive = leaderMember ? leaderMember.alive : false;
+  if(!leaderAlive && state.leaderMultiplier > 1){
+    state.leaderMultiplier = Math.max(1, state.leaderMultiplier/2);
+    logMsg(`Your Leader has fallen — score multiplier reduced to ×${state.leaderMultiplier}.`, 'bad');
+  }
+  if(state.distance>=TRAIL_GOAL){ state.over=true; endRun(true); }
+}
+function endRun(success){
+  const survivors = state.members.filter(m=>m.alive);
+  const healthSum = survivors.reduce((s,m)=>s+m.health,0);
+  const stackMult = 1 + Math.min(state.stackBonus,3)*0.05;
+  const distancePts = Math.floor(Math.min(state.distance,TRAIL_GOAL) * 2);
+  const timePts = success ? Math.max(0, Math.round((160-state.day)*3)) : 0;
+  const foodPts = Math.floor(state.food);
+  const cashPts = Math.floor(state.cash);
+  const healthPts = Math.floor(healthSum*3);
+  const survivorPts = survivors.length*150;
+  const subtotal = distancePts+timePts+foodPts+cashPts+healthPts+survivorPts;
+  const total = Math.round(subtotal * state.leaderMultiplier * stackMult);
+
+  document.getElementById('end-eyebrow').textContent = success ? "Journey Complete" : "Journey Ended Early";
+  document.getElementById('end-title').textContent = success ? `You reached Diamond Acres with ${survivors.length}/4 survivors` : `The party was lost ${Math.floor(state.distance)}mi from Diamond Acres`;
+  document.getElementById('final-score-num').textContent = total.toLocaleString();
+  document.getElementById('score-breakdown').innerHTML = `
+    <div class="stat-box"><div class="label">Distance Bonus</div><div class="value">${distancePts}</div><div class="muted" style="font-size:9.5px;">${Math.floor(Math.min(state.distance,TRAIL_GOAL))}mi × 2</div></div>
+    <div class="stat-box"><div class="label">Time Bonus</div><div class="value">${timePts}</div></div>
+    <div class="stat-box"><div class="label">Food Left</div><div class="value">${foodPts}</div></div>
+    <div class="stat-box"><div class="label">Cash Left</div><div class="value">${cashPts}</div></div>
+    <div class="stat-box"><div class="label">Party Health Bonus</div><div class="value">${healthPts}</div><div class="muted" style="font-size:9.5px;">${Math.floor(healthSum)} total health × 3</div></div>
+    <div class="stat-box"><div class="label">Survivor Bonus</div><div class="value">${survivorPts}</div><div class="muted" style="font-size:9.5px;">${survivors.length} survived × 150</div></div>
+    <div class="stat-box"><div class="label">Leader ×</div><div class="value">×${state.leaderMultiplier}</div></div>
+    <div class="stat-box"><div class="label">Biome Stack ×</div><div class="value">×${stackMult.toFixed(2)}</div></div>
+  `;
+  window._lastScore = total;
+  renderLeaderboard();
+  show('screen-end');
+}
+function saveScore(){
+  const name = document.getElementById('player-name').value.trim() || 'Anonymous Settler';
+  leaderboard.push({name, score:window._lastScore, cls:state.leaderClass, day:state.day});
+  leaderboard.sort((a,b)=>b.score-a.score); leaderboard = leaderboard.slice(0,10);
+  renderLeaderboard();
+  document.getElementById('player-name').disabled = true;
+  document.querySelector('#screen-end .btn.chain').disabled = true;
+}
+function renderLeaderboard(){
+  const t = document.getElementById('leaderboard-table');
+  if(leaderboard.length===0){ t.innerHTML = '<tr><td class="muted">No scores saved yet this session.</td></tr>'; return; }
+  t.innerHTML = `<tr><th>#</th><th>Name</th><th>Class</th><th>Days</th><th>Score</th></tr>` +
+    leaderboard.map((l,i)=>`<tr><td>${i+1}</td><td>${l.name}</td><td>${l.cls}</td><td>${l.day}</td><td>${l.score.toLocaleString()}</td></tr>`).join('');
+}
+function resetGame(){
+  stopSceneLoop();
+  selected=[]; leaderIdx=null; state=null; usingWallet=false; WALLET_ROSTER=[];
+  document.getElementById('wallet-status').textContent = "Showing the demo roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
+  document.getElementById('player-name').value=''; document.getElementById('player-name').disabled=false;
+  document.querySelector('#screen-end .btn.chain').disabled = false;
+  show('screen-title');
+}
+
+show('screen-title');
+</script>
+</body>
+</html>
