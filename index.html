@@ -252,7 +252,6 @@
 
       <div class="row between" style="margin-top:20px; border-top:1px solid rgba(43,35,24,.15); padding-top:14px;">
         <div class="muted" id="home-persist-note"></div>
-        <button class="btn chain" onclick="goToPartySelect()">Assemble Your Party →</button>
       </div>
     </div>
   </div>
@@ -1724,7 +1723,7 @@ function renderRouteSummary(){
   const r = activeRoute();
   el.innerHTML = `
     <div><b>${r.label}</b> <span class="muted">— ${r.goalMiles.toLocaleString()}mi active route</span></div>
-    <button class="btn small" onclick="switchHomeTab('routes')">Change Route</button>
+    <button class="btn chain" onclick="goToPartySelect()">Assemble Your Party →</button>
   `;
 }
 function renderHome(){
