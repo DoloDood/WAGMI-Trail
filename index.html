@@ -260,10 +260,10 @@
     <div class="panel">
       <span class="eyebrow">Step 2 of 3</span>
       <h2>Choose Your Party</h2>
-      <p class="muted">Select exactly 4 Acres. Then tap "Set as Leader" on one — their Class sets your Score Multiplier (rarer Leader = bigger multiplier, but a smaller outfitting budget — same trade-off as a hard-mode profession).</p>
+      <p class="muted">Pick 4 characters, then tap "Set as Leader" on one.</p>
       <div class="row between" style="margin:10px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:5px;">
         <div class="muted" id="wallet-status">Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.</div>
-        <button class="btn small" id="connect-wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+        <button class="btn small" id="connect-wallet-btn" onclick="refreshWalletAssets()">Connect Wallet</button>
       </div>
       <div class="row between" style="margin-top:10px;">
         <div class="muted" id="party-status">Selected: 0 / 4 &nbsp;•&nbsp; Leader: none</div>
@@ -1491,51 +1491,96 @@ async function connectWallet(){
     await provider.send("eth_requestAccounts", []);
     const signer = provider.getSigner();
     const address = await signer.getAddress();
-    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loading your Green Acres NFTs…`;
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-    const ids = await contract.tokensOfOwner(address);
-    if(!ids || ids.length===0){
-      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — no Green Acres NFTs found in this wallet. Showing the free starter roster.`;
-      btn.disabled=false; btn.textContent="Connect Wallet"; return;
-    }
-    const capped = ids.slice(0, 100);
-    const fetched = [];
-    const BATCH_SIZE = 6;
-    for(let start=0; start<capped.length; start+=BATCH_SIZE){
-      const batch = capped.slice(start, start+BATCH_SIZE);
-      statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loading your Green Acres NFTs… (${Math.min(start+BATCH_SIZE,capped.length)}/${capped.length})`;
-      const results = await Promise.allSettled(batch.map(async (bn, bi)=>{
-        const tokenId = bn.toString();
-        let uri = await contract.tokenURI(tokenId);
-        uri = uri.replace('ipfs://','https://ipfs.io/ipfs/');
-        const meta = await fetch(uri).then(r=>r.json());
-        if(meta.image) meta.image = meta.image.replace('ipfs://','https://ipfs.io/ipfs/');
-        return computeMemberFromAttributes(tokenId, meta, start+bi);
-      }));
-      results.forEach(r=>{ if(r.status==='fulfilled') fetched.push(r.value); else console.warn('Could not load a token', r.reason); });
-    }
-    if(fetched.length===0){
-      statusEl.textContent = "Connected, but couldn't load metadata for your Acres (network/IPFS gateway issue) — showing the free starter roster.";
-      btn.disabled=false; btn.textContent="Connect Wallet"; return;
-    }
-    fetched.sort((a,b)=> b.mult - a.mult || a.id.localeCompare(b.id));
-    let generatedNote = '';
-    if(fetched.length<4){
-      const realCount = fetched.length;
-      const padCount = (4-realCount)+2; // pad past the bare minimum so there's still some real choice
-      for(let g=0; g<padCount; g++) fetched.push(generateRandomCharacter(realCount+g));
-      generatedNote = ` You own ${realCount} — padded with ${padCount} randomly generated companions (clearly marked) so you can still fill a full party.`;
-    }
-    WALLET_ROSTER = fetched; usingWallet = true;
-    selected = []; leaderIdx = null;
-    const cappedNote = ids.length>100 ? ` (showing the first 100 of ${ids.length} held)` : '';
-    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Rarity is computed from the collection's real published trait-frequency counts across all 7 categories, and true 1-of-1s are recognized by name.${generatedNote}`;
-    renderRoster();
+    if(playerProfile){ playerProfile.wallet_address = address; saveProfile(); }
+    await loadWalletNFTs(address, provider);
   }catch(err){
     console.error(err);
     statusEl.textContent = "Wallet connection failed or was rejected — showing the free starter roster.";
   }
-  btn.disabled=false; btn.textContent="Connect Wallet";
+  btn.disabled=false; btn.textContent = usingWallet ? "🔄 Refresh Assets" : "Connect Wallet";
+}
+// Shared by connectWallet() (explicit click), tryAutoReconnectWallet()
+// (silent, on page load, using an already-saved address), and the
+// "Refresh Assets" button (re-fetch in case holdings changed).
+async function loadWalletNFTs(address, provider){
+  const statusEl = document.getElementById('wallet-status');
+  const btn = document.getElementById('connect-wallet-btn');
+  const short = `${address.slice(0,6)}…${address.slice(-4)}`;
+  statusEl.textContent = `${short} — loading your Green Acres NFTs…`;
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+  const ids = await contract.tokensOfOwner(address);
+  if(!ids || ids.length===0){
+    statusEl.textContent = `${short} — no Green Acres NFTs found. Showing the free starter roster.`;
+    return;
+  }
+  const capped = ids.slice(0, 100);
+  const fetched = [];
+  const BATCH_SIZE = 6;
+  for(let start=0; start<capped.length; start+=BATCH_SIZE){
+    const batch = capped.slice(start, start+BATCH_SIZE);
+    statusEl.textContent = `${short} — loading your Green Acres NFTs… (${Math.min(start+BATCH_SIZE,capped.length)}/${capped.length})`;
+    const results = await Promise.allSettled(batch.map(async (bn, bi)=>{
+      const tokenId = bn.toString();
+      let uri = await contract.tokenURI(tokenId);
+      uri = uri.replace('ipfs://','https://ipfs.io/ipfs/');
+      const meta = await fetch(uri).then(r=>r.json());
+      if(meta.image) meta.image = meta.image.replace('ipfs://','https://ipfs.io/ipfs/');
+      return computeMemberFromAttributes(tokenId, meta, start+bi);
+    }));
+    results.forEach(r=>{ if(r.status==='fulfilled') fetched.push(r.value); else console.warn('Could not load a token', r.reason); });
+  }
+  if(fetched.length===0){
+    statusEl.textContent = `${short} — couldn't load metadata for your Acres (network/IPFS issue). Showing the free starter roster.`;
+    return;
+  }
+  fetched.sort((a,b)=> b.mult - a.mult || a.id.localeCompare(b.id));
+  let generatedNote = '';
+  if(fetched.length<4){
+    const realCount = fetched.length;
+    const padCount = (4-realCount)+2; // pad past the bare minimum so there's still some real choice
+    for(let g=0; g<padCount; g++) fetched.push(generateRandomCharacter(realCount+g));
+    generatedNote = ` (+${padCount} generated to fill your party)`;
+  }
+  WALLET_ROSTER = fetched; usingWallet = true;
+  selected = []; leaderIdx = null;
+  const cappedNote = ids.length>100 ? ` of ${ids.length}` : '';
+  statusEl.textContent = `${short} — ${fetched.length} NFT${fetched.length>1?'s':''}${cappedNote} loaded${generatedNote}.`;
+  if(btn) btn.textContent = "🔄 Refresh Assets";
+  renderRoster();
+}
+// Runs once when the party screen is first reached. If we already have a
+// saved wallet address for this player, try a *silent* reconnect — eth_accounts
+// (unlike eth_requestAccounts) never pops a permission prompt, it just
+// returns whatever accounts the extension already has authorized for this
+// site. If it matches, load NFTs automatically with no click needed. If
+// the extension isn't authorized (or a different wallet answers), fall
+// back to a normal "Connect Wallet" button — silently, no error shown.
+async function tryAutoReconnectWallet(){
+  if(usingWallet) return;
+  if(!playerProfile || !playerProfile.wallet_address) return;
+  if(!window.ethereum) return;
+  try{
+    await loadEthers();
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const accounts = await provider.send("eth_accounts", []);
+    if(!accounts || accounts.length===0) return;
+    const match = accounts.find(a=>a.toLowerCase()===playerProfile.wallet_address.toLowerCase());
+    if(!match) return;
+    await loadWalletNFTs(match, provider);
+  }catch(e){ console.warn('Silent wallet reconnect skipped', e); }
+}
+function refreshWalletAssets(){
+  if(!usingWallet || !playerProfile || !playerProfile.wallet_address) { connectWallet(); return; }
+  const btn = document.getElementById('connect-wallet-btn');
+  if(btn){ btn.disabled = true; btn.textContent = "Refreshing…"; }
+  (async()=>{
+    try{
+      await loadEthers();
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await loadWalletNFTs(playerProfile.wallet_address, provider);
+    }catch(e){ console.warn('Refresh failed', e); }
+    if(btn) btn.disabled = false;
+  })();
 }
 
 /* ============================================================
@@ -1546,6 +1591,7 @@ async function connectWallet(){
    since there's no account to attach it to.
    ============================================================ */
 const DEFAULT_PROFILE = { trail_points:0, perks_unlocked:[], active_route:'green_acres', routes_unlocked:['green_acres'], quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
+  wallet_address:null,
   wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[],
   lifetime_miles:0, lifetime_runs:0, lifetime_wins:0, lifetime_deaths:0,
   lifetime_animals_hunted:0, lifetime_fish_caught:0, lifetime_rivers_crossed:0, lifetime_legendary_encounters:0,
@@ -1592,6 +1638,7 @@ async function saveProfile(){
       quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
       quest_finish_done: playerProfile.quest_finish_done, quest_date: playerProfile.quest_date,
       username: currentUser.username,
+      wallet_address: playerProfile.wallet_address,
       wagon_canvas: playerProfile.wagon_canvas, wagon_trim: playerProfile.wagon_trim,
       wagon_wheel: playerProfile.wagon_wheel, wagon_accessory: playerProfile.wagon_accessory,
       wagon_unlocked: playerProfile.wagon_unlocked,
@@ -1993,7 +2040,7 @@ function showUserBadge(){
   el.classList.remove('hide');
 }
 
-function goToPartySelect(){ show('screen-party'); renderRoster(); }
+function goToPartySelect(){ show('screen-party'); renderRoster(); tryAutoReconnectWallet(); }
 
 /* ============================================================
    OUTFITTING
