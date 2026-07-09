@@ -290,7 +290,7 @@
     <div class="panel">
       <div class="row between">
         <div><span class="eyebrow" id="trail-route-name">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
-        <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
+        <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span> · <span id="stat-season">Spring</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
       </div>
       <div class="party-strip" id="party-strip"></div>
       <canvas id="travelScene" width="640" height="90"></canvas>
@@ -745,6 +745,7 @@ const ICONS = {
   BASKET: {rows:[".KKKKKK.","K......K","KWWWWWWK","KWWWWWWK","KKKKKKKK","........","........","........"], pal:{K:'#5b3a29', W:'#c9382c'}},
   WRENCH: {rows:["...KKK..","..KK.KK.",".KK...K.","..KK.K..","...KK...","..KK....",".KK.....","KK......"], pal:{K:'#6b6b6b'}},
   MEDKIT: {rows:["KKKKKKKK","KWWWWWWK","KWWRRWWK","KWRRRRWK","KWWRRWWK","KWWWWWWK","KKKKKKKK","........"], pal:{K:'#2b2318', W:'#e4d3a8', R:'#b23a2f'}},
+  GRAVE: {rows:["..KKKK..",".KKKKKK.","KK.KK.KK","KKKKKKKK","KK....KK","KK....KK","KK....KK","KKKKKKKK"], pal:{K:'#6b6b6b'}},
 };
 
 const SPRITE_URLS = {WAGON: spriteToDataURL(WAGON_ROWS, WAGON_PAL, 4)};
@@ -1002,6 +1003,44 @@ const RATIONS = {
 
 const STARTING_CASH = {1:800, 1.5:650, 2:500, 3:350, 4:250};
 const PRICES = {oxen:40, food50:10, clothing:10, ammoBox:5, parts:15};
+
+/* ============================================================
+   DISEASES — the classic trail illnesses, each with its own
+   flavor and a distinct death epitaph. Weighted so dysentery
+   stays the most common killer, same as the original game.
+   ============================================================ */
+const DISEASES = {
+  dysentery: {label:"Dysentery",       weight:34, desc:"comes down with a violent case of dysentery", deathVerb:"died of dysentery", severity:1.0},
+  typhoid:   {label:"Typhoid Fever",   weight:18, desc:"is burning up with typhoid fever",             deathVerb:"died of typhoid fever", severity:1.15},
+  cholera:   {label:"Cholera",         weight:16, desc:"has caught cholera from the water",            deathVerb:"died of cholera", severity:1.2},
+  measles:   {label:"Measles",         weight:14, desc:"has broken out in measles",                    deathVerb:"died of measles", severity:0.9},
+  exhaustion:{label:"Exhaustion",      weight:12, desc:"has collapsed from sheer exhaustion",           deathVerb:"died of exhaustion", severity:0.8},
+  snakebite: {label:"Snakebite",       weight:6,  desc:"was bitten by a snake in the brush",            deathVerb:"died from a snakebite", severity:1.3},
+};
+function rollDisease(){
+  const total = Object.values(DISEASES).reduce((s,d)=>s+d.weight,0);
+  let roll = Math.random()*total;
+  for(const k in DISEASES){ roll -= DISEASES[k].weight; if(roll<=0) return k; }
+  return 'dysentery';
+}
+
+/* ============================================================
+   SEASONS — day-of-trail drives a slow seasonal drift, same as
+   the original game punishing late departures. Affects river
+   danger, random-event odds, and cold-weather food burn.
+   ============================================================ */
+const SEASONS = [
+  {key:'spring', label:"Spring",      minDay:0,   riverMod:0,    eventMod:1.0,  foodBurn:0, blizzard:false},
+  {key:'summer', label:"Summer",      minDay:46,  riverMod:-0.1, eventMod:0.95, foodBurn:0, blizzard:false},
+  {key:'fall',   label:"Fall",        minDay:91,  riverMod:0.15, eventMod:1.05, foodBurn:0, blizzard:false},
+  {key:'winter', label:"Winter",      minDay:136, riverMod:0.4,  eventMod:1.2,  foodBurn:1, blizzard:true},
+];
+function currentSeason(){
+  if(!state) return SEASONS[0];
+  let s = SEASONS[0];
+  for(const sea of SEASONS){ if(state.day>=sea.minDay) s = sea; }
+  return s;
+}
 
 const NPC_QUOTES = [
   "\"Cash reserves are fine, but a party with matching biomes wins the trail — trust the stack.\" — trail veteran at the depot.",
@@ -2049,7 +2088,7 @@ let outfitPurchases = {oxen:0, food:0, clothing:0, ammo:0, parts:0};
 
 function goToOutfitting(){
   const roster = getCurrentRoster();
-  const members = selected.map(i=>({...roster[i], health:100, alive:true, sick:false}));
+  const members = selected.map(i=>({...roster[i], health:100, alive:true, sick:false, disease:null}));
   const leader = members.find(m=>m.id===roster[leaderIdx].id);
   window._pendingParty = {members, leader};
   outfitBudget = STARTING_CASH[leader.mult] || 500;
@@ -2127,7 +2166,9 @@ function departTrail(){
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
     sceneMode:'trail', foragedZones:new Set(), fishedRivers:new Set(), leaderPenaltyApplied:false,
+    gravestones:[], seenGraves:new Set(),
   };
+  loadGravestones(route.key);
   logMsg(`Party departs the Genesis Homestead with ${state.oxen} oxen, ${state.food}lb food, ${state.ammo} ammo, ${state.parts} spare parts.`, 'chain');
   if(stackBonus>0){
     const sharedBiome = Object.entries(biomeCounts).sort((a,b)=>b[1]-a[1])[0][0];
@@ -2334,8 +2375,18 @@ function renderTrail(){
       lmHtml += `<div class="lm-label" style="left:${p}%; top:${y+stagger}px">${lm.name}</div>`;
     }
   });
+  (state.gravestones||[]).forEach(g=>{
+    const frac = Math.min(1, g.mile/TRAIL_GOAL);
+    const p = frac*100;
+    const y = bendY(frac);
+    lmHtml += `<img class="lm pixel" title="${g.member_name} — ${g.cause} (${g.username})" style="left:${p}%; top:${y+8}px; opacity:.8;" src="${SPRITE_URLS.GRAVE}" width="12" height="12">`;
+  });
   const wagonY = bendY(pct/100);
   map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%; top:${wagonY}px" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
+
+  const seasonEl = document.getElementById('stat-season');
+  if(seasonEl) seasonEl.textContent = currentSeason().label;
+
 
   state.members.forEach((m,i)=>{
     const img = document.getElementById('party-img-'+i);
@@ -2351,7 +2402,7 @@ function renderTrail(){
     const statusEl = document.getElementById('party-status-'+i);
     if(statusEl && m.alive){
       const pct2 = Math.max(0,m.health);
-      if(m.sick){ statusEl.textContent = '🤒 Sick'; statusEl.className = 'status-badge sick'; }
+      if(m.sick){ statusEl.textContent = '🤒 ' + (m.disease && DISEASES[m.disease] ? DISEASES[m.disease].label : 'Sick'); statusEl.className = 'status-badge sick'; }
       else if(pct2<35){ statusEl.textContent = '⚠️ Weak'; statusEl.className = 'status-badge weak'; }
       else { statusEl.textContent = '✓ Healthy'; statusEl.className = 'status-badge ok'; }
     }
@@ -2369,7 +2420,7 @@ function renderPartyStrip(){
     const pct2 = Math.max(0,m.health);
     let status = '';
     if(m.alive){
-      if(m.sick) status = '<div class="status-badge sick">🤒 Sick</div>';
+      if(m.sick) status = `<div class="status-badge sick">🤒 ${m.disease && DISEASES[m.disease] ? DISEASES[m.disease].label : 'Sick'}</div>`;
       else if(pct2<35) status = '<div class="status-badge weak">⚠️ Weak</div>';
       else status = '<div class="status-badge ok">✓ Healthy</div>';
     }
@@ -2608,10 +2659,17 @@ function travelStretch(){
   const enteredZone = FERTILE_ZONES.find(z=> z.start>prevDistance && z.start<=state.distance && !state.foragedZones.has(z.name));
   if(enteredZone) logMsg(`Passing through ${enteredZone.name} — fertile ground nearby. Forage while you can.`, 'chain');
 
+  const passedGraves = passedGravestonesThisStretch(prevDistance, state.distance);
+  passedGraves.forEach(g=>{
+    state.seenGraves.add(g.mile+'|'+g.member_name);
+    logMsg(`A weathered marker at mile ${g.mile}: "${g.member_name}, ${g.cause}." — ${g.username}'s party passed this way before.`, 'bad');
+  });
+
+  const season = currentSeason();
   const aliveCount = state.members.filter(m=>m.alive).length;
-  const consumed = ration.perMember * aliveCount;
+  const consumed = (ration.perMember + season.foodBurn) * aliveCount;
   state.food -= consumed;
-  if(state.food<0){ state.food=0; applyHealth(-8, "Rations ran out — the party goes hungry."); }
+  if(state.food<0){ state.food=0; applyHealth(-8, "Rations ran out — the party goes hungry.", null, 'starvation'); }
   applyHealth(ration.healthDelta, null);
   if(pace.fatigue>0) applyHealth(-pace.fatigue, null);
 
@@ -2632,7 +2690,7 @@ function travelStretch(){
   renderTrail();
 }
 
-function applyHealth(delta, msg, targetId){
+function applyHealth(delta, msg, targetId, cause){
   const gritMult = (delta<0 && hasPerk('grit')) ? 0.85 : 1;
   state.members.forEach(m=>{
     if(!m.alive) return;
@@ -2644,17 +2702,31 @@ function applyHealth(delta, msg, targetId){
       d = d * (1 - (effResist/10)*0.5) * variance;
     }
     m.health = Math.min(100, Math.max(0, m.health + d));
-    if(m.health<=0){ m.alive=false; logMsg(`${m.name} could not continue and was left at the trailside.`, 'bad'); }
+    if(m.health<=0){
+      m.alive=false;
+      let deathVerb = cause || 'exhaustion and hardship';
+      if(m.sick && m.disease && DISEASES[m.disease]) deathVerb = DISEASES[m.disease].deathVerb;
+      const epitaph = `${m.name} has ${m.sick && m.disease ? '' : 'died of '}${deathVerb}.`;
+      logMsg(epitaph, 'bad');
+      saveGravestone(m, m.sick && m.disease ? DISEASES[m.disease].label : (cause||'the trail'));
+    }
   });
   if(msg) logMsg(msg, delta<0?'bad':'good');
 }
 
 function rollRandomEvent(mod){
+  const season = currentSeason();
   const r = Math.random();
   if(r<0.40) return;
   if(r<0.50){
-    const gain = 15+Math.floor(Math.random()*20); state.food += gain;
-    logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
+    if(season.blizzard && Math.random()<0.4){
+      const resist = partyStat('resist');
+      const dmg = Math.max(3, Math.round((9*mod*season.eventMod) - resist*0.4));
+      applyHealth(-dmg, `A winter blizzard sweeps over the party (resist ${resist.toFixed(1)} softened it).`, null, 'exposure to the cold');
+    } else {
+      const gain = 15+Math.floor(Math.random()*20); state.food += gain;
+      logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
+    }
   } else if(r<0.65){
     triggerSickness();
   } else if(r<0.80){
@@ -2665,8 +2737,8 @@ function rollRandomEvent(mod){
     else { const loss = Math.min(state.cash, 10+Math.floor(Math.random()*20)); state.cash -= loss; logMsg(`Robbed in the night — lost ${loss} \u039e.`, 'bad'); }
   } else {
     const resist = partyStat('resist');
-    const dmg = Math.max(2, Math.round((7*mod) - resist*0.4));
-    applyHealth(-dmg, `A storm rolls through (resist ${resist.toFixed(1)} softened it).`);
+    const dmg = Math.max(2, Math.round((7*mod*season.eventMod) - resist*0.4));
+    applyHealth(-dmg, `A storm rolls through (resist ${resist.toFixed(1)} softened it).`, null, 'a storm on the trail');
   }
 }
 
@@ -2775,12 +2847,16 @@ function renderTownStore(){
   const foodCost = Math.max(1, Math.round(PRICES.food50*negotiated));
   const ammoCost = Math.max(1, Math.round(PRICES.ammoBox*negotiated));
   const partsCost = Math.max(1, Math.round(PRICES.parts*negotiated));
+  const oxenCost = Math.max(1, Math.round(PRICES.oxen*negotiated));
+  const clothingCost = Math.max(1, Math.round(PRICES.clothing*negotiated));
   // Sell prices are always half the local buy price (before haggling), so
   // there's no buy-then-sell loop to farm cash from thin air.
   const foodSell = Math.max(1, Math.round(PRICES.food50*currentTownMult*0.5));
   const ammoSell = Math.max(1, Math.round(PRICES.ammoBox*currentTownMult*0.5));
   const partsSell = Math.max(1, Math.round(PRICES.parts*currentTownMult*0.5));
-  const canSellFood = state.food>=50, canSellAmmo = state.ammo>=20, canSellParts = state.parts>=1;
+  const oxenSell = Math.max(1, Math.round(PRICES.oxen*currentTownMult*0.5));
+  const canSellFood = state.food>=50, canSellAmmo = state.ammo>=20, canSellParts = state.parts>=1, canSellOxen = state.oxen>2;
+  const canBuyClothing = state.clothingBonus<3;
   document.getElementById('town-store').innerHTML = `
     <div class="item-name">Food (50 lb) <div class="item-price">Buy ${foodCost} \u039e &nbsp;/&nbsp; Sell ${foodSell} \u039e</div></div>
     <button class="btn small" onclick="townBuy('food',50,${foodCost})">Buy</button>
@@ -2791,24 +2867,35 @@ function renderTownStore(){
     <div class="item-name">Spare Part <div class="item-price">Buy ${partsCost} \u039e &nbsp;/&nbsp; Sell ${partsSell} \u039e</div></div>
     <button class="btn small" onclick="townBuy('parts',1,${partsCost})">Buy</button>
     <button class="btn small" ${canSellParts?'':'disabled'} onclick="townSell('parts',1,${partsSell})">Sell</button><div></div>
+    <div class="item-name">Ox <div class="item-price">Buy ${oxenCost} \u039e &nbsp;/&nbsp; Sell ${oxenSell} \u039e</div></div>
+    <button class="btn small" onclick="townBuy('oxen',1,${oxenCost})">Buy</button>
+    <button class="btn small" ${canSellOxen?'':'disabled'} onclick="townSell('oxen',1,${oxenSell})">Sell</button><div></div>
+    <div class="item-name">Warmer Clothing <div class="item-price">Buy ${clothingCost} \u039e</div></div>
+    <button class="btn small" ${canBuyClothing?'':'disabled'} onclick="townBuy('clothing',1,${clothingCost})">Buy</button>
+    <div></div><div></div>
   `;
   document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
 }
 function townBuy(key, amt, cost){
   if(state.cash<cost) return;
+  if(key==='clothing' && state.clothingBonus>=3) return;
   state.cash -= cost;
   if(key==='food') state.food += amt;
   if(key==='ammo') state.ammo += amt;
   if(key==='parts') state.parts += amt;
+  if(key==='oxen') state.oxen += amt;
+  if(key==='clothing') state.clothingBonus = Math.min(3, state.clothingBonus+0.5);
   renderTownStore();
 }
 function townSell(key, amt, value){
   if(key==='food' && state.food<amt) return;
   if(key==='ammo' && state.ammo<amt) return;
   if(key==='parts' && state.parts<amt) return;
+  if(key==='oxen' && state.oxen<=2) return;
   if(key==='food') state.food -= amt;
   if(key==='ammo') state.ammo -= amt;
   if(key==='parts') state.parts -= amt;
+  if(key==='oxen') state.oxen -= amt;
   state.cash += value;
   renderTownStore();
 }
@@ -2825,7 +2912,7 @@ const FORKS = {
   "The Diamond Hands Split": {
     desc:"Two ways forward. Cut through rough canyon shortcut, or hold the safer prairie course.",
     options:[
-      {label:"Cut Through the Canyon", detail:"+50 bonus miles instantly, but a rockslide risk (\u22126 health, resist mitigated).", apply:function(){ state.distance+=50; applyHealth(-6, "Canyon shortcut: a rockslide clips the wagon."); }},
+      {label:"Cut Through the Canyon", detail:"+50 bonus miles instantly, but a rockslide risk (\u22126 health, resist mitigated).", apply:function(){ state.distance+=50; applyHealth(-6, "Canyon shortcut: a rockslide clips the wagon.", null, "a rockslide"); }},
       {label:"Hold the Prairie Course", detail:"No shortcut, but good grazing land (+20 food).", apply:function(){ state.food+=20; logMsg("Prairie course: good grazing found along the way (+20 food).", 'good'); }},
     ]
   },
@@ -2834,7 +2921,7 @@ const FORKS = {
     options:[
       {label:"Brave Cold Storage Caverns", detail:"50/50: either a hidden cache (+60 \u039e) or a cave-in (\u221210 health, resist mitigated).", apply:function(){
         if(Math.random()<0.5){ state.cash+=60; logMsg("Cold Storage Caverns: found a hidden cache (+60 \u039e).", 'good'); }
-        else { applyHealth(-10, "Cold Storage Caverns: a cave-in shakes the party."); }
+        else { applyHealth(-10, "Cold Storage Caverns: a cave-in shakes the party.", null, "a cave-in"); }
       }},
       {label:"Detour via Ledger Lookout", detail:"Costs extra miles on the next stretches, but guaranteed safe passage and a small trade bonus (+15 \u039e).", apply:function(){
         LANDMARKS.forEach(function(l){ if(l.mile>1500) l.mile+=40; });
@@ -2880,7 +2967,7 @@ function resolveHazard(lm, baseDanger, slow){
   const mitig = (resist+tinkering)/2 + (slow?3:0);
   const dmg = Math.max(2, Math.round(baseDanger - mitig*0.8));
   if(slow) state.day += 1;
-  applyHealth(-dmg, `${lm.name}: ${slow?'took it slow through':'pushed through'} a major hazard (mitigation ${mitig.toFixed(1)}).`);
+  applyHealth(-dmg, `${lm.name}: ${slow?'took it slow through':'pushed through'} a major hazard (mitigation ${mitig.toFixed(1)}).`, null, `an accident at ${lm.name}`);
   state.sceneMode='trail';
   checkEndConditions();
   renderTrail();
@@ -2916,8 +3003,14 @@ function openHunting(lm){
   document.getElementById('hunt-hits').textContent = '0';
   document.getElementById('hunt-ammo').textContent = state.ammo;
   document.getElementById('hunt-timer').textContent = '20';
-  document.getElementById('hunt-start-btn').textContent = 'Start Hunt';
-  document.getElementById('hunt-start-btn').disabled=false;
+  const startBtn = document.getElementById('hunt-start-btn');
+  if(state.ammo<=0){
+    startBtn.textContent = 'No Ammo — Buy Some in Town';
+    startBtn.disabled = true;
+  } else {
+    startBtn.textContent = 'Start Hunt';
+    startBtn.disabled = false;
+  }
   const canvas = document.getElementById('huntCanvas');
   huntCtx = canvas.getContext('2d');
   huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
@@ -2993,6 +3086,11 @@ function drawHunt(){
       huntCtx.beginPath(); huntCtx.arc(t.x, t.y, t.r+6, 0, Math.PI*2); huntCtx.stroke();
     }
   });
+  if(state.ammo<=0){
+    huntCtx.fillStyle = 'rgba(43,35,24,.55)'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
+    huntCtx.fillStyle = '#e4d3a8'; huntCtx.font = 'bold 20px monospace'; huntCtx.textAlign='center';
+    huntCtx.fillText('OUT OF AMMO', canvas.width/2, canvas.height/2);
+  }
 }
 function handleHuntClick(e){
   if(!huntActive) return;
@@ -3140,9 +3238,10 @@ function guideCost(){ return hasPerk('guide') ? Math.round(RIVER_GUIDE_COST*0.75
 let currentRiverStats = null;
 function generateRiverStats(lm){
   const frac = lm.mile/TRAIL_GOAL;
-  const depthFt = Math.round((2 + frac*4 + Math.random()*2)*10)/10;
+  const season = currentSeason();
+  const depthFt = Math.max(0.5, Math.round((2 + frac*4 + Math.random()*2 + season.riverMod*2)*10)/10);
   const widthYd = Math.round(40 + frac*80 + Math.random()*40);
-  const currentScore = depthFt*0.5 + widthYd*0.05 + Math.random()*2;
+  const currentScore = depthFt*0.5 + widthYd*0.05 + Math.random()*2 + season.riverMod*3;
   let currentLabel, currentMult;
   if(currentScore<6){ currentLabel='Calm'; currentMult=0.8; }
   else if(currentScore<9){ currentLabel='Moderate'; currentMult=1.0; }
@@ -3153,7 +3252,7 @@ function generateRiverStats(lm){
 function openRiverChoice(lm){
   currentRiverStats = generateRiverStats(lm);
   document.getElementById('river-title').innerHTML = `<img class="pixel" src="${SPRITE_URLS.FISH}" width="20" height="20"> ${lm.name}`;
-  document.getElementById('river-desc').textContent = "You size up the crossing before committing. Ford it yourself, or pay a local guide for safe passage.";
+  document.getElementById('river-desc').textContent = `${currentSeason().label} crossing. Size it up before committing — ford it yourself, caulk the wagon and float it across, or pay a local guide for safe passage.`;
   document.getElementById('river-stats').innerHTML = `
     <div class="stat-box"><div class="label">Depth</div><div class="value">${currentRiverStats.depthFt} ft</div></div>
     <div class="stat-box"><div class="label">Width</div><div class="value">${currentRiverStats.widthYd} yd</div></div>
@@ -3163,6 +3262,7 @@ function openRiverChoice(lm){
   const canAffordGuide = state.cash>=cost;
   document.getElementById('river-options').innerHTML = `
     <div class="fork-card" onclick="chooseRiverFord()"><h4>Ford the River</h4><div class="muted">Raft across and dodge the current — Rafting skill sets how much of a beating the raft can take.</div></div>
+    <div class="fork-card" onclick="chooseRiverCaulk()"><h4>Caulk the Wagon &amp; Float</h4><div class="muted">Free, no minigame — seal the wagon bed and float it over. Tinkering skill and the river's depth/current decide how it goes.</div></div>
     <div class="fork-card" style="${canAffordGuide?'':'opacity:.45; pointer-events:none;'}" onclick="chooseRiverGuide()"><h4>Pay a Guide (${cost} \u039e)${canAffordGuide?'':' — not enough cash'}</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
   `;
   document.getElementById('modal-river').classList.remove('hide');
@@ -3170,6 +3270,28 @@ function openRiverChoice(lm){
 function chooseRiverFord(){
   document.getElementById('modal-river').classList.add('hide');
   openRafting(pendingLandmark);
+}
+function chooseRiverCaulk(){
+  document.getElementById('modal-river').classList.add('hide');
+  const tinkering = partyStat('tinkering');
+  const stats = currentRiverStats;
+  // Risk scales with depth and current, mitigated by tinkering (caulk quality).
+  const riskScore = stats.depthFt*1.2 + stats.currentMult*10 - tinkering*1.5;
+  const roll = Math.random()*20;
+  if(roll > riskScore + 6){
+    logMsg(`${pendingLandmark.name}: the caulked wagon floats across clean and dry (Tinkering ${tinkering.toFixed(1)}).`, 'good');
+  } else if(roll > riskScore - 4){
+    const lostFood = Math.round(8+Math.random()*15), lostAmmo = Math.round(2+Math.random()*6);
+    state.food = Math.max(0, state.food-lostFood); state.ammo = Math.max(0, state.ammo-lostAmmo);
+    logMsg(`${pendingLandmark.name}: the wagon rode low and took on water — lost ${lostFood}lb food, ${lostAmmo} ammo in the crossing.`, 'bad');
+  } else {
+    const lostFood = Math.round(20+Math.random()*25), lostAmmo = Math.round(6+Math.random()*10);
+    state.food = Math.max(0, state.food-lostFood); state.ammo = Math.max(0, state.ammo-lostAmmo);
+    applyHealth(-Math.round(8+stats.currentMult*4), `${pendingLandmark.name}: the wagon nearly rolled in the current — lost ${lostFood}lb food, ${lostAmmo} ammo, and the party took a beating.`, null, 'drowning in the crossing');
+  }
+  state.sceneMode='trail';
+  checkEndConditions();
+  renderTrail();
 }
 function chooseRiverGuide(){
   const cost = guideCost();
@@ -3300,7 +3422,8 @@ function endRafting(){
     const lossNote = lossBits.length ? ` Lost ${lossBits.join(', ')} in the current.` : '';
     applyHealth(-dmg, capsized
       ? `${pendingLandmark.name}: the raft capsized in the current!${lossNote}`
-      : `${pendingLandmark.name}: forded the river, a little banged up (raft integrity ${Math.max(0,Math.round(raftHealth/raftMaxHealth*100))}%).${lossNote}`);
+      : `${pendingLandmark.name}: forded the river, a little banged up (raft integrity ${Math.max(0,Math.round(raftHealth/raftMaxHealth*100))}%).${lossNote}`,
+      null, capsized ? 'drowning when the raft capsized' : `an accident fording ${pendingLandmark.name}`);
   } else {
     logMsg(`${pendingLandmark.name}: forded the river clean, no damage taken.`, 'good');
   }
@@ -3392,51 +3515,55 @@ function triggerSickness(){
   const alive = state.members.filter(m=>m.alive);
   if(alive.length===0) return;
   const patient = alive[Math.floor(Math.random()*alive.length)];
+  if(!patient.disease) patient.disease = rollDisease();
+  const disease = DISEASES[patient.disease];
   const medicine = partyStat('medicine'), resist = partyStat('resist');
   openDecision({
     title: "Sickness in the Camp",
     icon: SPRITE_URLS.MEDKIT,
-    desc: `${patient.name} has come down with a fever. Decide how to treat it.`,
+    desc: `${patient.name} ${disease.desc}. Decide how to treat it.`,
     options: [
       {label: "Treat with Medicine (+1 day)",
        detail: `Best odds of a clean recovery, but proper care takes time. Medicine ${medicine.toFixed(1)}.`,
-       apply: ()=>resolveSickness(patient, 'treat', medicine, resist)},
+       apply: ()=>resolveSickness(patient, 'treat', medicine, resist, disease)},
       {label: "Rest and Wait It Out",
        detail: `No day lost, no treatment attempt — leaves it to chance. Resist ${resist.toFixed(1)}.`,
-       apply: ()=>resolveSickness(patient, 'rest', medicine, resist)},
+       apply: ()=>resolveSickness(patient, 'rest', medicine, resist, disease)},
       {label: "Push Through It",
        detail: "Keep traveling and hope it passes — risky, and likely to leave them sick for a while.",
-       apply: ()=>resolveSickness(patient, 'push', medicine, resist)},
+       apply: ()=>resolveSickness(patient, 'push', medicine, resist, disease)},
     ]
   });
 }
-function resolveSickness(patient, method, medicine, resist){
+function resolveSickness(patient, method, medicine, resist, disease){
   const stillAlive = state.members.find(m=>m.id===patient.id && m.alive);
+  const sev = disease.severity;
+  const dLabel = disease.label.toLowerCase();
   if(method==='treat'){
     state.day += 1;
-    const successChance = Math.min(0.92, 0.45+medicine*0.06);
+    const successChance = Math.min(0.95, (0.45+medicine*0.06)/sev);
     if(Math.random()<successChance){
-      if(stillAlive) stillAlive.sick = false;
-      logMsg(`${patient.name} was treated in time, no lasting harm (Medicine ${medicine.toFixed(1)}, +1 day).`, 'good');
+      if(stillAlive){ stillAlive.sick = false; stillAlive.disease = null; }
+      logMsg(`${patient.name} was treated for ${dLabel} in time, no lasting harm (Medicine ${medicine.toFixed(1)}, +1 day).`, 'good');
     } else {
       if(stillAlive) stillAlive.sick = true;
-      const dmg = Math.max(2, Math.round(6-medicine*0.3-resist*0.2));
-      applyHealth(-dmg, `${patient.name}: treatment helped some, but they're still sick (+1 day).`, patient.id);
+      const dmg = Math.max(2, Math.round((6-medicine*0.3-resist*0.2)*sev));
+      applyHealth(-dmg, `${patient.name}: treatment helped some with the ${dLabel}, but they're still sick (+1 day).`, patient.id);
     }
   } else if(method==='rest'){
-    const successChance = Math.min(0.7, 0.3+resist*0.05);
+    const successChance = Math.max(0.05, Math.min(0.7, (0.3+resist*0.05)/sev));
     if(Math.random()<successChance){
-      if(stillAlive) stillAlive.sick = false;
-      logMsg(`${patient.name} rested it off — recovered without treatment (Resist ${resist.toFixed(1)}).`, 'good');
+      if(stillAlive){ stillAlive.sick = false; stillAlive.disease = null; }
+      logMsg(`${patient.name} rested off the ${dLabel} — recovered without treatment (Resist ${resist.toFixed(1)}).`, 'good');
     } else {
       if(stillAlive) stillAlive.sick = true;
-      const dmg = Math.max(1, Math.round(5-resist*0.4));
-      applyHealth(-dmg, `${patient.name}: still sick — resting alone wasn't enough (Resist ${resist.toFixed(1)}).`, patient.id);
+      const dmg = Math.max(1, Math.round((5-resist*0.4)*sev));
+      applyHealth(-dmg, `${patient.name}: still fighting the ${dLabel} — resting alone wasn't enough (Resist ${resist.toFixed(1)}).`, patient.id);
     }
   } else {
     if(stillAlive) stillAlive.sick = true;
-    const dmg = Math.max(3, Math.round(9-resist*0.3));
-    applyHealth(-dmg, `${patient.name}: pushing through took a real toll, and they're still sick (Resist ${resist.toFixed(1)}).`, patient.id);
+    const dmg = Math.max(3, Math.round((9-resist*0.3)*sev));
+    applyHealth(-dmg, `${patient.name}: pushing through the ${dLabel} took a real toll, and they're still sick (Resist ${resist.toFixed(1)}).`, patient.id);
   }
   checkEndConditions();
   renderTrail();
@@ -3654,6 +3781,40 @@ function getSupabase(){
     try{ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.warn('Supabase init failed', e); }
   }
   return supabaseClient;
+}
+
+/* ============================================================
+   GRAVESTONES — every party-member death is pinned to the exact
+   mile it happened on that route, saved to Supabase, and shown
+   to every future traveler who passes that spot — same spirit as
+   the original game's cross-player grave markers.
+   ============================================================ */
+async function saveGravestone(member, cause){
+  if(!state) return;
+  const client = getSupabase();
+  if(!client) return;
+  const name = (currentUser && currentUser.username) ? currentUser.username : 'Anonymous Settler';
+  try{
+    await client.from('gravestones').insert({
+      member_name: member.name, cause, mile: Math.floor(state.distance),
+      route_key: (state.routeInfo && state.routeInfo.key) || 'green_acres', username: name,
+    });
+  }catch(e){ console.warn('Could not save gravestone', e); }
+}
+async function loadGravestones(routeKey){
+  state.gravestones = [];
+  const client = getSupabase();
+  if(!client) return;
+  try{
+    const { data, error } = await client.from('gravestones').select('member_name,cause,mile,username')
+      .eq('route_key', routeKey).order('mile', { ascending:true }).limit(300);
+    if(error) throw error;
+    state.gravestones = data || [];
+  }catch(e){ console.warn('Could not load gravestones', e); }
+}
+function passedGravestonesThisStretch(fromMile, toMile){
+  if(!state || !state.gravestones) return [];
+  return state.gravestones.filter(g => g.mile>=fromMile && g.mile<toMile && !state.seenGraves.has(g.mile+'|'+g.member_name));
 }
 
 async function autoSaveAndRender(){
