@@ -159,7 +159,7 @@
       <span class="eyebrow">DOLO x Green Acres Presents</span>
       <h1>WAGMI TRAIL</h1>
       <span class="glow">a metaverse crossing // acre.exe launched</span>
-      <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across 2,000 chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, trade at the towns along the way, and put your score on the leaderboard.</p>
+      <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across 2,000 chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, haggle at the towns along the way, and put your score on the leaderboard.</p>
       <button class="btn chain" onclick="goToLogin()">Assemble Your Party →</button>
       <div style="margin-top:16px;"><a href="https://x.com/dolodood" target="_blank" rel="noopener noreferrer" style="color:var(--chain-cyan-dim); font-size:12px; text-decoration:none; letter-spacing:.05em;">Follow @dolodood on X →</a></div>
     </div>
@@ -167,9 +167,9 @@
 
   <div id="screen-login" class="hide">
     <div class="panel" style="text-align:center; padding:44px 20px;">
-      <span class="eyebrow">Step 1 of 4</span>
+      <span class="eyebrow">Step 1 of 3</span>
       <h2>Sign In</h2>
-      <p class="muted" style="max-width:420px; margin:8px auto 20px;">Sign in with Google and pick a username. This is what will show up on the leaderboard once it's live.</p>
+      <p class="muted" style="max-width:420px; margin:8px auto 20px;">Sign in with Google and pick a username. This is what shows up on the leaderboard.</p>
       <div id="google-signin-btn" style="display:flex; justify-content:center; margin:10px 0 6px;"></div>
       <div id="username-step" class="hide" style="margin-top:14px;">
         <p class="muted" id="signed-in-as"></p>
@@ -207,7 +207,7 @@
 
   <div id="screen-party" class="hide">
     <div class="panel">
-      <span class="eyebrow">Step 2 of 4</span>
+      <span class="eyebrow">Step 2 of 3</span>
       <h2>Choose Your Party</h2>
       <p class="muted">Select exactly 4 Acres. Then tap "Set as Leader" on one — their Class sets your Score Multiplier (rarer Leader = bigger multiplier, but a smaller outfitting budget — same trade-off as a hard-mode profession).</p>
       <div class="row between" style="margin:10px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:5px;">
@@ -224,7 +224,7 @@
 
   <div id="screen-outfit" class="hide">
     <div class="panel">
-      <span class="eyebrow">Step 3 of 4</span>
+      <span class="eyebrow">Step 3 of 3</span>
       <h2>Outfit the Wagon</h2>
       <p class="muted" id="outfit-intro"></p>
       <div class="store-grid" id="outfit-store"></div>
@@ -1074,8 +1074,8 @@ async function buyUpgrade(key){
 }
 
 const QUESTS = [
-  {key:'quest_town_done',     label:'Visit a Town',           desc:'Stop and trade at any town landmark during a run.', reward:20},
-  {key:'quest_minigame_done', label:'Win a Hunt or Catch',     desc:'Land at least one hit hunting, or one catch fishing.', reward:20},
+  {key:'quest_town_done',     label:'Visit a Town',           desc:'Stop and restock at any town landmark during a run.', reward:20},
+  {key:'quest_minigame_done', label:'Play a Minigame',        desc:'Land a hit hunting, a catch fishing or foraging, or complete a river crossing.', reward:20},
   {key:'quest_finish_done',   label:'Reach Diamond Acres',     desc:'Finish the trail in a single run.', reward:50},
 ];
 function renderQuests(){
@@ -1161,9 +1161,9 @@ function updatePartyUI(){
    Client ID -> Web application), with your deployed Vercel URL
    added under Authorized JavaScript origins. Swap the placeholder
    below for your real Client ID once you have one.
-   No backend yet, so identity + username live in this session
-   only — this lays the groundwork for the leaderboard, which
-   will need real persistence to save usernames across visits.
+   Identity + username persist via Supabase (player_profiles
+   table, keyed by email) — see loadProfile()/saveProfile() below.
+   Guests are session-only since there's no account to attach to.
    ============================================================ */
 const GOOGLE_CLIENT_ID = "8027673446-30g1k56bblsdcqk56ajid007fpm8d2tb.apps.googleusercontent.com";
 let currentUser = null; // { email, name, picture, username }
@@ -1314,7 +1314,7 @@ function departTrail(){
     clothingBonus: Math.min(3, outfitPurchases.clothing*0.5),
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
-    sceneMode:'trail', foragedZones:new Set(),
+    sceneMode:'trail', foragedZones:new Set(), leaderPenaltyApplied:false,
   };
   logMsg(`Party departs the Genesis Homestead with ${state.oxen} oxen, ${state.food}lb food, ${state.ammo} ammo, ${state.parts} spare parts.`, 'chain');
   if(stackBonus>0){
@@ -2202,6 +2202,7 @@ function endRafting(){
   } else {
     logMsg(`${pendingLandmark.name}: forded the river clean, no damage taken.`, 'good');
   }
+  completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
 
@@ -2427,8 +2428,9 @@ function checkEndConditions(){
   if(!anyAlive){ state.over=true; endRun(false); return; }
   const leaderMember = state.members.find(m=>m.id===state.leaderId);
   const leaderAlive = leaderMember ? leaderMember.alive : false;
-  if(!leaderAlive && state.leaderMultiplier > 1){
+  if(!leaderAlive && !state.leaderPenaltyApplied){
     state.leaderMultiplier = Math.max(1, state.leaderMultiplier/2);
+    state.leaderPenaltyApplied = true;
     logMsg(`Your Leader has fallen — score multiplier reduced to ×${state.leaderMultiplier}.`, 'bad');
   }
   if(state.distance>=TRAIL_GOAL){ state.over=true; endRun(true); }
