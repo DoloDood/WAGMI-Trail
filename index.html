@@ -199,6 +199,10 @@
       <p class="muted">Spend Trail Points earned from finished runs. Upgrades apply to every future run automatically.</p>
       <div id="upgrade-list" class="store-grid"></div>
 
+      <h3 style="margin-top:18px;">Customize Your Wagon</h3>
+      <p class="muted">Purely cosmetic — unlock a piece once, then swap freely between anything you own, any time.</p>
+      <div id="wagon-customize"></div>
+
       <h3 style="margin-top:18px;">Daily Trail Tasks</h3>
       <p class="muted" id="quest-reset-note">Resets once per day. Complete these during a run to earn bonus Trail Points.</p>
       <div id="quest-list"></div>
@@ -512,18 +516,128 @@ function drawSpriteCentered(ctx, rows, palette, cx, cy, pixel){
 }
 
 const WAGON_ROWS = [
-  "...KWWWWWWK...",
-  "..KWWWWWWWWK..",
-  ".KWWWWWWWWWWK.",
-  "KWWWWWWWWWWWWK",
-  "..KKKKKKKKKK..",
-  "..BBBBBBBBBB..",
-  "..BBBBBBBBBB..",
-  ".K.BB....BB.K.",
-  "K.O..K..K..O.K",
-  "..O..K..K..O..",
+  "....KKKKKKKK....",
+  "...KWWWWWWWWK...",
+  "..KWWRWWWWRWWK..",
+  ".KWWWRWWWWWRWWK.",
+  "KWWWWRWWWWRWWWWK",
+  "KWWWWWWWWWWWWWWK",
+  "KWWWWWWWWWWWWWWK",
+  ".KKKKKKKKKKKKKK.",
+  ".BBBBBBBBBBBBBB.",
+  ".BDDDDDDDDDDDDB.",
+  ".BBBBBBBBBBBBBB.",
+  ".KKKKKKKKKKKKKK.",
+  ".TTT.DDDDDD.TTT.",
+  "T.H.TDDDDDDT.H.T",
+  "THHHTDDDDDDTHHHT",
+  "T.H.TDDDDDDT.H.T",
+  ".TTT........TTT.",
 ];
-const WAGON_PAL = {K:'#2b2318', W:'#f4ede0', B:'#7a4a2b', O:'#3a3226'};
+// W=canvas, R=canvas rib shade (derived), K=trim, B=body wood (fixed),
+// D=dark plank/hitch (fixed), T/H=wheel rim+spoke (customizable together).
+const WAGON_PAL = {K:'#2b2318', W:'#f4ede0', R:'#d8cdb8', B:'#7a4a2b', D:'#3a2a1a', T:'#5b3a29', H:'#5b3a29'};
+function shadeHex(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.max(0,Math.min(255,(n>>16)+amt));
+  const g = Math.max(0,Math.min(255,((n>>8)&0xff)+amt));
+  const b = Math.max(0,Math.min(255,(n&0xff)+amt));
+  return '#'+(1<<24 | r<<16 | g<<8 | b).toString(16).slice(1);
+}
+const FLAG_ROWS = ["..K","..K",".KG",".GG",".KG","..K"];
+const FLAG_PAL = {K:'#2b2318', G:'#4a7c3f'};
+const LANTERN_ROWS = [".K.","KYK","KYK","KYK",".K."];
+const LANTERN_PAL = {K:'#2b2318', Y:'#f0c85a'};
+const ANTLERS_ROWS = ["K...K","KK.KK","KK.KK",".K.K."];
+const ANTLERS_PAL = {K:'#8a6a4a'};
+const WAGON_ACCESSORY_SPRITES = {
+  flag: {rows:FLAG_ROWS, pal:FLAG_PAL},
+  lantern: {rows:LANTERN_ROWS, pal:LANTERN_PAL},
+  antlers: {rows:ANTLERS_ROWS, pal:ANTLERS_PAL},
+};
+
+/* ============================================================
+   WAGON CUSTOMIZATION — cosmetic-only unlocks bought with Trail
+   Points, separate from the three functional upgrades. Each item
+   is unlocked once and then freely equipped/swapped afterward, so
+   there's meaningfully more to spend points on than three tiers.
+   ============================================================ */
+const WAGON_CANVAS_OPTIONS = [
+  {key:'cream',    label:'Cream',        color:'#f4ede0', cost:0},
+  {key:'sky',      label:'Sky Blue',     color:'#bfe3e0', cost:40},
+  {key:'gold',     label:'Golden',       color:'#fff3c4', cost:60},
+  {key:'rose',     label:'Dusty Rose',   color:'#f0cfcf', cost:60},
+  {key:'forest',   label:'Forest Green', color:'#cfe0b8', cost:80},
+  {key:'midnight', label:'Midnight',     color:'#4a4f6e', cost:150},
+];
+const WAGON_TRIM_OPTIONS = [
+  {key:'walnut',  label:'Walnut',  color:'#2b2318', cost:0},
+  {key:'teal',    label:'Teal',    color:'#2f6f66', cost:50},
+  {key:'crimson', label:'Crimson', color:'#7a2323', cost:70},
+  {key:'gold',    label:'Gold',    color:'#c9a227', cost:120},
+];
+const WAGON_WHEEL_OPTIONS = [
+  {key:'oak',     label:'Oak',          color:'#5b3a29', cost:0},
+  {key:'iron',    label:'Iron-Banded',  color:'#5b5b5b', cost:50},
+  {key:'crimson', label:'Crimson',      color:'#8a2e2e', cost:70},
+  {key:'gilded',  label:'Gilded',       color:'#c9a227', cost:150},
+];
+const WAGON_ACCESSORY_OPTIONS = [
+  {key:'none',     label:'None',                 cost:0},
+  {key:'flag',     label:'Green Acres Flag',     cost:60},
+  {key:'lantern',  label:'Trail Lantern',        cost:80},
+  {key:'antlers',  label:'Lucky Antlers',        cost:100},
+];
+const WAGON_CATEGORIES = [
+  {slot:'canvas',    profileKey:'wagon_canvas',    options:WAGON_CANVAS_OPTIONS},
+  {slot:'trim',      profileKey:'wagon_trim',      options:WAGON_TRIM_OPTIONS},
+  {slot:'wheel',     profileKey:'wagon_wheel',     options:WAGON_WHEEL_OPTIONS},
+  {slot:'accessory', profileKey:'wagon_accessory', options:WAGON_ACCESSORY_OPTIONS},
+];
+function isWagonItemUnlocked(slot, key, cost){
+  if(cost===0) return true;
+  return (playerProfile.wagon_unlocked||[]).includes(slot+':'+key);
+}
+async function buyWagonItem(slot, key){
+  const cat = WAGON_CATEGORIES.find(c=>c.slot===slot);
+  const opt = cat.options.find(o=>o.key===key);
+  if(!opt) return;
+  const unlocked = isWagonItemUnlocked(slot, key, opt.cost);
+  if(!unlocked){
+    if((playerProfile.trail_points||0) < opt.cost) return;
+    playerProfile.trail_points -= opt.cost;
+    playerProfile.wagon_unlocked = (playerProfile.wagon_unlocked||[]).concat(slot+':'+key);
+  }
+  playerProfile[cat.profileKey] = key;
+  await saveProfile();
+  renderHome();
+}
+function currentWagonPalette(){
+  const canvas = WAGON_CANVAS_OPTIONS.find(o=>o.key===playerProfile.wagon_canvas) || WAGON_CANVAS_OPTIONS[0];
+  const trim = WAGON_TRIM_OPTIONS.find(o=>o.key===playerProfile.wagon_trim) || WAGON_TRIM_OPTIONS[0];
+  const wheel = WAGON_WHEEL_OPTIONS.find(o=>o.key===playerProfile.wagon_wheel) || WAGON_WHEEL_OPTIONS[0];
+  return {
+    K: trim.color, W: canvas.color, R: shadeHex(canvas.color, -28),
+    B: WAGON_PAL.B, D: WAGON_PAL.D, T: wheel.color, H: shadeHex(wheel.color, -25),
+  };
+}
+function renderWagonCustomize(){
+  const el = document.getElementById('wagon-customize');
+  if(!el) return;
+  el.innerHTML = WAGON_CATEGORIES.map(cat=>{
+    const equipped = playerProfile[cat.profileKey];
+    const swatches = cat.options.map(o=>{
+      const unlocked = isWagonItemUnlocked(cat.slot, o.key, o.cost);
+      const isEquipped = equipped===o.key;
+      const swatch = o.color ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${o.color};margin-right:5px;vertical-align:middle;border:1px solid rgba(0,0,0,.2);"></span>` : '';
+      const btnLabel = isEquipped ? 'Equipped' : (unlocked ? 'Equip' : `Unlock (${o.cost} pts)`);
+      const disabled = isEquipped || (!unlocked && (playerProfile.trail_points||0)<o.cost);
+      return `<button class="btn small" ${disabled?'disabled':''} style="margin:3px 4px 0 0; ${isEquipped?'border-color:var(--chain-cyan);':''}" onclick="buyWagonItem('${cat.slot}','${o.key}')">${swatch}${o.label} — ${btnLabel}</button>`;
+    }).join('');
+    const label = {canvas:'Canvas Color', trim:'Trim Color', wheel:'Wheel Style', accessory:'Accessory'}[cat.slot];
+    return `<div style="margin-bottom:10px;"><div class="muted" style="font-size:11px; margin-bottom:3px;">${label}</div>${swatches}</div>`;
+  }).join('');
+}
 
 const FISH_ROWS = ["...KK...","..KSSSK.","KSSSSSSK","SSSSSSSK","KSSSSSSK","..KSSSK.","...KK..."];
 const FISH_PAL = {K:'#1f3a4a', S:'#4fd6c4'};
@@ -996,7 +1110,8 @@ async function connectWallet(){
    Guests get a session-only profile that resets on reload,
    since there's no account to attach it to.
    ============================================================ */
-const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null };
+const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
+  wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[] };
 let playerProfile = {...DEFAULT_PROFILE};
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
@@ -1007,7 +1122,7 @@ async function loadProfile(){
       try{
         const { data, error } = await client.from('player_profiles').select('*').eq('user_key', currentUser.email).maybeSingle();
         if(error) throw error;
-        if(data){ playerProfile = data; }
+        if(data){ playerProfile = {...DEFAULT_PROFILE, ...data}; }
         else{
           const fresh = {...DEFAULT_PROFILE, user_key: currentUser.email, username: currentUser.username};
           const { data: inserted, error: insErr } = await client.from('player_profiles').insert(fresh).select().single();
@@ -1039,6 +1154,9 @@ async function saveProfile(){
       quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
       quest_finish_done: playerProfile.quest_finish_done, quest_date: playerProfile.quest_date,
       username: currentUser.username,
+      wagon_canvas: playerProfile.wagon_canvas, wagon_trim: playerProfile.wagon_trim,
+      wagon_wheel: playerProfile.wagon_wheel, wagon_accessory: playerProfile.wagon_accessory,
+      wagon_unlocked: playerProfile.wagon_unlocked,
     }).eq('user_key', currentUser.email);
   }catch(e){ console.warn('Could not save profile to Supabase', e); }
 }
@@ -1062,6 +1180,7 @@ function renderHome(){
   document.getElementById('home-points').textContent = (playerProfile.trail_points||0).toLocaleString();
   drawWagonPreview();
   renderUpgrades();
+  renderWagonCustomize();
   renderQuests();
 }
 
@@ -1110,24 +1229,20 @@ function renderQuests(){
   }).join('');
 }
 
-function wagonPalette(){
-  const level = (playerProfile.oxen_tier||1)+(playerProfile.wheels_tier||1)+(playerProfile.storage_tier||1);
-  if(level>=7) return {canvasColor:'#fff3c4', trimColor:'#c9a227'};
-  if(level>=5) return {canvasColor:'#dff5f0', trimColor:'#2f6f66'};
-  return {canvasColor:'#f4ede0', trimColor:'#2b2318'};
-}
 function drawWagonPreview(){
   const canvas = document.getElementById('wagonPreview');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
   const w=canvas.width, h=canvas.height;
   ctx.clearRect(0,0,w,h);
-  const {canvasColor, trimColor} = wagonPalette();
-  const pal = {...WAGON_PAL, W:canvasColor, K:trimColor};
+  const pal = currentWagonPalette();
   const oxenCount = 1 + (playerProfile.oxen_tier||1);
   let ox = 50;
   for(let i=0;i<oxenCount;i++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, ox, h*0.72, 4); ox += 32; }
-  drawSpriteCentered(ctx, WAGON_ROWS, pal, ox+38, h*0.58, 5.5);
+  const wagonX = ox+38, wagonY = h*0.58;
+  drawSpriteCentered(ctx, WAGON_ROWS, pal, wagonX, wagonY, 5.5);
+  const accessory = WAGON_ACCESSORY_SPRITES[playerProfile.wagon_accessory];
+  if(accessory) drawSpriteCentered(ctx, accessory.rows, accessory.pal, wagonX+2, wagonY-46, 5.5);
 }
 
 /* ============================================================
@@ -1325,6 +1440,7 @@ function departTrail(){
   const cost = outfitCost();
   const biomeCounts = {}; members.forEach(m=>biomeCounts[m.biome]=(biomeCounts[m.biome]||0)+1);
   const stackBonus = Math.max(...Object.values(biomeCounts)) - 1;
+  SPRITE_URLS.WAGON = spriteToDataURL(WAGON_ROWS, currentWagonPalette(), 4);
 
   state = {
     day:1, distance:0,
@@ -1375,27 +1491,35 @@ function startSceneLoop(){
   const loop = ()=>{
     sceneTime += 1;
     const traveling = performance.now() < sceneBurstUntil;
-    sceneGroundOffset += traveling ? 5 : 1.2;
-    drawTravelScene(traveling);
+    const paceEl = document.getElementById('pace-select');
+    const paceMult = {steady:1, strenuous:1.3, grueling:1.65}[paceEl ? paceEl.value : 'steady'] || 1;
+    const aliveNow = state ? state.members.filter(m=>m.alive) : [];
+    const avgHealth = aliveNow.length ? aliveNow.reduce((s,m)=>s+m.health,0)/aliveNow.length : 100;
+    const weary = avgHealth < 40;
+    sceneGroundOffset += (traveling ? 5 : 1.2) * paceMult * (weary ? 0.65 : 1);
+    drawTravelScene(traveling, weary);
     sceneRAF = requestAnimationFrame(loop);
   };
   loop();
 }
 function stopSceneLoop(){ cancelAnimationFrame(sceneRAF); }
 
-function drawTravelScene(traveling){
+function drawTravelScene(traveling, weary){
   const canvas = document.getElementById('travelScene');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const mode = state ? state.sceneMode : 'trail';
 
-  // ---- sky + base ground, tinted per scene mode ----
+  // ---- sky + base ground, tinted per scene mode, shifted by day-of-trail cycle ----
   const skyTop = {trail:'#bfe3e0', river:'#a9d4e6', town:'#e8dcc0', hazard:'#8a7360', plains:'#d7ecc9', fork:'#c9dfd0', legendary:'#efe0a8'}[mode] || '#bfe3e0';
   const skyBot = {trail:'#eaf6e6', river:'#eaf6f0', town:'#f3ead2', hazard:'#b89a7c', plains:'#f2f8e6', fork:'#eaf6e6', legendary:'#fff3c4'}[mode] || '#eaf6e6';
+  const dayPhase = state ? (state.day % 8) : 0; // slow drift through the trail day, purely atmospheric
+  const dayTint = dayPhase<2 ? 'rgba(255,200,150,.10)' : dayPhase>5 ? 'rgba(120,140,200,.10)' : 'rgba(0,0,0,0)';
   const grad = ctx.createLinearGradient(0,0,0,h*0.62);
   grad.addColorStop(0,skyTop); grad.addColorStop(1,skyBot);
   ctx.fillStyle = grad; ctx.fillRect(0,0,w,h*0.62);
+  if(dayTint!=='rgba(0,0,0,0)'){ ctx.fillStyle = dayTint; ctx.fillRect(0,0,w,h*0.62); }
 
   ctx.fillStyle = mode==='hazard' ? '#6b5a46' : '#a9cf8f';
   ctx.beginPath(); ctx.moveTo(0,h*0.6);
@@ -1456,7 +1580,14 @@ function drawTravelScene(traveling){
   const stripe = 26;
   for(let x=-stripe+(sceneGroundOffset%stripe); x<w; x+=stripe){ ctx.fillRect(x, h*0.6, stripe/2, h*0.4); }
 
-  const bob = i => Math.sin(sceneTime*0.15 + i*0.7) * (traveling?4:1.3);
+  const bob = i => Math.sin(sceneTime*0.15 + i*0.7) * (traveling?4:1.3) * (weary?0.6:1);
+  if(weary){
+    ctx.fillStyle = 'rgba(140,120,95,.22)';
+    for(let i=0;i<5;i++){
+      const dx = (sceneGroundOffset*1.2 + i*26) % (w*0.4);
+      ctx.beginPath(); ctx.arc(20+dx, h*0.86, 5+i%2*2, 0, Math.PI*2); ctx.fill();
+    }
+  }
   const legToggle = Math.floor(sceneTime/(traveling?6:16)) % 2 === 0;
 
   // ---- convoy: party trails behind, wagon in the middle, oxen lead up front ----
@@ -1479,9 +1610,11 @@ function drawTravelScene(traveling){
       wi++;
     });
   }
-  const wp = wagonPalette();
-  const wagonPal = {...WAGON_PAL, W:wp.canvasColor, K:wp.trimColor};
-  drawSpriteCentered(ctx, WAGON_ROWS, wagonPal, 240, h*0.68+bob(5), 5);
+  const wagonPal = currentWagonPalette();
+  const wagonX = 240, wagonY = h*0.68+bob(5);
+  drawSpriteCentered(ctx, WAGON_ROWS, wagonPal, wagonX, wagonY, 5);
+  const wagonAccessory = WAGON_ACCESSORY_SPRITES[(playerProfile && playerProfile.wagon_accessory) || 'none'];
+  if(wagonAccessory) drawSpriteCentered(ctx, wagonAccessory.rows, wagonAccessory.pal, wagonX+2, wagonY-42, 5);
   const inTrailOxenCount = 1 + ((playerProfile && playerProfile.oxen_tier) || 1);
   let oxX = 366;
   for(let oi=0; oi<inTrailOxenCount; oi++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, oxX, h*0.8+bob(6+oi), 4); oxX += 34; }
