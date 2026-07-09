@@ -572,16 +572,16 @@ const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
 const TRAIL_GOAL = 2000;
 
 const FREE_ROSTER = [
-  {id:"F1", name:"Ragged Farmhand", cls:"Laborer",      rarity:"Common", mult:1, biome:"Prairie",   food:4, combat:2, repair:3, trade:2, morale:3, perception:2, river:2, resist:3},
-  {id:"F2", name:"Nervous Clerk",   cls:"Everyday",     rarity:"Common", mult:1, biome:"Welcome",   food:2, combat:2, repair:2, trade:3, morale:3, perception:3, river:2, resist:2},
-  {id:"F3", name:"Tired Wanderer",  cls:"Wanderer",     rarity:"Common", mult:1, biome:"Canyon",    food:2, combat:2, repair:2, trade:2, morale:3, perception:3, river:2, resist:3},
-  {id:"F4", name:"Green Recruit",   cls:"Military",     rarity:"Common", mult:1, biome:"Factory",   food:2, combat:4, repair:2, trade:2, morale:3, perception:2, river:2, resist:2},
-  {id:"F5", name:"Humble Bartender",cls:"Social",       rarity:"Common", mult:1, biome:"Homestead", food:2, combat:2, repair:2, trade:3, morale:5, perception:2, river:2, resist:2},
-  {id:"F6", name:"Rookie Deckhand", cls:"Maritime",     rarity:"Common", mult:1, biome:"Open Sky",  food:2, combat:2, repair:2, trade:2, morale:3, perception:2, river:4, resist:2},
-  {id:"F7", name:"Petty Thief",     cls:"Outlaw",       rarity:"Common", mult:1, biome:"Welcome",   food:2, combat:3, repair:2, trade:1, morale:3, perception:3, river:2, resist:2},
-  {id:"F8", name:"Junior Clerk",    cls:"Professional", rarity:"Common", mult:1, biome:"Homestead", food:2, combat:2, repair:2, trade:4, morale:3, perception:3, river:2, resist:2},
-  {id:"F9", name:"Weary Traveler",  cls:"Everyday",     rarity:"Common", mult:1, biome:"Prairie",   food:3, combat:2, repair:2, trade:2, morale:3, perception:2, river:2, resist:2},
-  {id:"F10",name:"Plain Settler",   cls:"Laborer",      rarity:"Common", mult:1, biome:"Factory",   food:3, combat:2, repair:3, trade:2, morale:3, perception:2, river:2, resist:2},
+  {id:"F1", name:"Ragged Farmhand", cls:"Laborer",      rarity:"Common", mult:1, biome:"Prairie",   hunting:2, scavenging:6, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:3, resist:3},
+  {id:"F2", name:"Nervous Clerk",   cls:"Everyday",     rarity:"Common", mult:1, biome:"Welcome",   hunting:2, scavenging:2, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:6, resist:2},
+  {id:"F3", name:"Tired Wanderer",  cls:"Wanderer",     rarity:"Common", mult:1, biome:"Canyon",    hunting:2, scavenging:2, fishing:2, rafting:3, tinkering:2, medicine:2, leadership:6, resist:5},
+  {id:"F4", name:"Green Recruit",   cls:"Military",     rarity:"Common", mult:1, biome:"Factory",   hunting:6, scavenging:2, fishing:2, rafting:3, tinkering:3, medicine:2, leadership:3, resist:2},
+  {id:"F5", name:"Humble Bartender",cls:"Social",       rarity:"Common", mult:1, biome:"Homestead", hunting:2, scavenging:2, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:8, resist:2},
+  {id:"F6", name:"Rookie Deckhand", cls:"Maritime",     rarity:"Common", mult:1, biome:"Open Sky",  hunting:2, scavenging:2, fishing:3, rafting:7, tinkering:2, medicine:2, leadership:3, resist:4},
+  {id:"F7", name:"Petty Thief",     cls:"Outlaw",       rarity:"Common", mult:1, biome:"Welcome",   hunting:2, scavenging:4, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:3, resist:2},
+  {id:"F8", name:"Junior Clerk",    cls:"Professional", rarity:"Common", mult:1, biome:"Homestead", hunting:2, scavenging:2, fishing:2, rafting:2, tinkering:2, medicine:5, leadership:5, resist:2},
+  {id:"F9", name:"Weary Traveler",  cls:"Everyday",     rarity:"Common", mult:1, biome:"Prairie",   hunting:3, scavenging:5, fishing:3, rafting:3, tinkering:3, medicine:3, leadership:5, resist:3},
+  {id:"F10",name:"Plain Settler",   cls:"Laborer",      rarity:"Common", mult:1, biome:"Factory",   hunting:2, scavenging:6, fishing:2, rafting:2, tinkering:4, medicine:2, leadership:3, resist:3},
 ];
 FREE_ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i); });
 
@@ -740,37 +740,50 @@ function computeMemberFromAttributes(tokenId, meta, idx){
   const faceB = FACE_MAP[faceVal] || 'FacialHair';
   const biome = BG_MAP[bgVal] || 'Homestead';
 
-  let food=3, combat=3, repair=3, trade=3, morale=5, perception=3, river=3, resist=3;
-  if(bodyB==='Laborer') food+=4;
-  if(bodyB==='Military') combat+=4;
-  if(bodyB==='Outlaw'){ combat+=2; trade-=1; }
-  if(bodyB==='Professional') trade+=3;
-  if(bodyB==='Social') morale+=3;
-  if(bodyB==='Maritime') river+=5;
-  if(bodyB==='Wanderer') perception+=2;
-  if(handB==='Weapons'){ combat+=3; food+=1; }
-  if(handB==='Tools') repair+=4;
-  if(handB==='CompanionAnimals'){ morale+=2; food+=1; }
-  if(handB==='Valuables') trade+=2;
-  if(handB==='Comfort') morale+=1;
-  if(handB==='Authority') trade+=2;
-  if(headB==='ColdRes'||headB==='HeatRes'||headB==='Disease') resist+=3;
-  if(headB==='Repair') repair+=3;
-  if(headB==='Evasion'){ perception+=1; combat+=1; }
-  if(headB==='Authority') trade+=2;
-  if(headB==='Route') perception+=3;
-  if(eyesB==='Sharp') perception+=4;
-  if(eyesB==='Impaired') perception-=2;
-  if(faceB==='PosSocial') trade+=2;
-  if(faceB==='NegSocial') trade-=1;
-  if(faceB==='Wisdom') perception+=3;
-  if(faceB==='Toughness'){ combat+=1; resist+=1; }
-  if(biome==='Prairie') food+=2;
-  if(biome==='Canyon') resist+=2;
-  if(biome==='Factory') repair+=2;
-  if(biome==='Welcome') trade+=2;
-  if(biome==='Open Sky'){ river+=2; resist+=1; }
-  if(biome==='Homestead') morale+=2;
+  // Seven active skills (Hunting, Scavenging, Fishing, Rafting, Tinkering,
+  // Medicine, Leadership), each driven by a distinct set of trait buckets so
+  // no two skills lean on the same source. Resist is a passive layer (like
+  // clothing) that quietly softens environmental hazard damage rather than
+  // being a "do something" skill of its own.
+  let hunting=3, scavenging=3, fishing=3, rafting=3, tinkering=3, medicine=3, leadership=5, resist=3;
+  if(bodyB==='Laborer') scavenging+=4;
+  if(bodyB==='Military'){ hunting+=4; rafting+=1; }
+  if(bodyB==='Outlaw'){ scavenging+=2; leadership-=1; }
+  if(bodyB==='Professional'){ medicine+=2; leadership+=2; }
+  if(bodyB==='Social') leadership+=4;
+  if(bodyB==='Maritime') rafting+=5;
+  if(bodyB==='Wanderer') leadership+=3;
+  if(bodyB==='Everyday'){ hunting+=1; scavenging+=1; fishing+=1; rafting+=1; tinkering+=1; medicine+=1; leadership+=1; }
+  if(handB==='Weapons') hunting+=4;
+  if(handB==='Tools') tinkering+=4;
+  if(handB==='CompanionAnimals'){ scavenging+=2; leadership+=1; }
+  if(handB==='Valuables') leadership+=2;
+  if(handB==='Comfort'){ medicine+=2; fishing+=1; }
+  if(handB==='Authority') leadership+=3;
+  // Wildcard hand items intentionally get no stat bonus — they stay pure
+  // event-trigger flavor rather than being forced into a skill.
+  if(headB==='ColdRes'||headB==='HeatRes') resist+=3;
+  if(headB==='Disease') medicine+=3;
+  if(headB==='Repair') tinkering+=3;
+  if(headB==='Evasion') leadership+=2;
+  if(headB==='Authority') leadership+=2;
+  if(headB==='Route') leadership+=3;
+  if(headB==='Cosmetic') leadership+=1;
+  if(eyesB==='Sharp'){ leadership+=3; hunting+=1; fishing+=1; }
+  if(eyesB==='Impaired') leadership-=2;
+  if(eyesB==='Morale') leadership+=2;
+  if(faceB==='PosSocial') leadership+=2;
+  if(faceB==='NegSocial') leadership-=1;
+  if(faceB==='FacialHair') hunting+=1;
+  if(faceB==='Wisdom'){ leadership+=2; fishing+=1; }
+  if(faceB==='Faction') scavenging+=1;
+  if(faceB==='Toughness'){ hunting+=1; rafting+=1; }
+  if(biome==='Prairie') scavenging+=2;
+  if(biome==='Canyon'){ resist+=2; rafting+=1; }
+  if(biome==='Factory') tinkering+=2;
+  if(biome==='Welcome') leadership+=2;
+  if(biome==='Homestead') leadership+=2;
+  if(biome==='Open Sky') resist+=2;
 
   const clamp = v=>Math.max(0, Math.min(10, Math.round(v)));
   let rarity, mult, rarityScore=null;
@@ -790,8 +803,8 @@ function computeMemberFromAttributes(tokenId, meta, idx){
     id: legendaryName ? legendaryName+" (1/1)" : "#"+tokenId,
     name: legendaryName ? legendaryName+" (1/1)" : (meta && meta.name ? meta.name : ("Green Acres #"+tokenId)),
     cls: legendaryName ? 'Legendary' : bodyB, biome, rarity, mult, rarityScore: rarityScore?Math.round(rarityScore):null,
-    food:clamp(Math.max(food,statFloor)), combat:clamp(Math.max(combat,statFloor)), repair:clamp(Math.max(repair,statFloor)), trade:clamp(Math.max(trade,statFloor)),
-    morale:clamp(Math.max(morale,statFloor)), perception:clamp(Math.max(perception,statFloor)), river:clamp(Math.max(river,statFloor)), resist:clamp(Math.max(resist,statFloor)),
+    hunting:clamp(Math.max(hunting,statFloor)), scavenging:clamp(Math.max(scavenging,statFloor)), fishing:clamp(Math.max(fishing,statFloor)), rafting:clamp(Math.max(rafting,statFloor)),
+    tinkering:clamp(Math.max(tinkering,statFloor)), medicine:clamp(Math.max(medicine,statFloor)), leadership:clamp(Math.max(leadership,statFloor)), resist:clamp(Math.max(resist,statFloor)),
   };
   member.pfp = makePfp(member, idx);
   member.walk = makeWalkFrames(member, idx);
@@ -1028,11 +1041,13 @@ function renderRoster(){
       <h4>${m.name}</h4>
       <div class="muted" style="font-size:10px;">${m.id} · ${m.biome}${m.rarityScore?` · score ${m.rarityScore}`:''}</div>
       <div class="statgrid-mini">
-        <div class="stat-mini"><span>Food</span><span>${m.food}</span></div>
-        <div class="stat-mini"><span>Combat</span><span>${m.combat}</span></div>
-        <div class="stat-mini"><span>Repair</span><span>${m.repair}</span></div>
-        <div class="stat-mini"><span>Trade</span><span>${m.trade}</span></div>
-        <div class="stat-mini"><span>River</span><span>${m.river}</span></div>
+        <div class="stat-mini"><span>Hunting</span><span>${m.hunting}</span></div>
+        <div class="stat-mini"><span>Scavenging</span><span>${m.scavenging}</span></div>
+        <div class="stat-mini"><span>Fishing</span><span>${m.fishing}</span></div>
+        <div class="stat-mini"><span>Rafting</span><span>${m.rafting}</span></div>
+        <div class="stat-mini"><span>Tinkering</span><span>${m.tinkering}</span></div>
+        <div class="stat-mini"><span>Medicine</span><span>${m.medicine}</span></div>
+        <div class="stat-mini"><span>Leadership</span><span>${m.leadership}</span></div>
       </div>
       <div class="leader-pick" onclick="event.stopPropagation(); setLeader(${i})">Set as Leader</div>
     </div>`;
@@ -1094,10 +1109,24 @@ function decodeJwt(token){
   const json = decodeURIComponent(atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
   return JSON.parse(json);
 }
-function handleGoogleCredential(response){
+async function handleGoogleCredential(response){
   const payload = decodeJwt(response.credential);
   currentUser = { email: payload.email, name: payload.name, picture: payload.picture, username: null };
   document.getElementById('signed-in-as').textContent = `Signed in as ${payload.name} (${payload.email})`;
+
+  // Returning user? Check for an already-saved username before asking for a new one.
+  const client = getSupabase();
+  if(client){
+    try{
+      const { data, error } = await client.from('player_profiles').select('username').eq('user_key', payload.email).maybeSingle();
+      if(!error && data && data.username){
+        currentUser.username = data.username;
+        showUserBadge();
+        goToHome();
+        return;
+      }
+    }catch(e){ console.warn('Could not check for an existing username', e); }
+  }
   document.getElementById('username-step').classList.remove('hide');
   document.getElementById('username-input').value = (payload.name||'').split(' ')[0] || '';
 }
@@ -1219,7 +1248,6 @@ function departTrail(){
 function partyStat(key){
   const alive = state.members.filter(m=>m.alive);
   if(alive.length===0) return 0;
-  if(key==='morale') return alive.reduce((s,m)=>s+m.morale,0)/alive.length;
   if(key==='resist') return Math.min(10, Math.max(...alive.map(m=>m.resist)) + state.clothingBonus);
   return Math.max(...alive.map(m=>m[key]));
 }
@@ -1512,25 +1540,25 @@ function rollRandomEvent(mod){
     const gain = 15+Math.floor(Math.random()*20); state.food += gain;
     logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
   } else if(r<0.65){
-    const resist = partyStat('resist');
-    const dmg = Math.max(2, Math.round((8*mod) - resist*0.5));
-    applyHealth(-dmg, `Sickness sweeps the wagon (resist ${resist.toFixed(1)} softened it).`);
+    const medicine = partyStat('medicine'), resist = partyStat('resist');
+    const dmg = Math.max(2, Math.round((8*mod) - medicine*0.4 - resist*0.3));
+    applyHealth(-dmg, `Sickness sweeps the wagon (Medicine ${medicine.toFixed(1)} softened it).`);
   } else if(r<0.80){
-    const repair = partyStat('repair');
-    if(state.parts>0 && repair>=4){
+    const tinkering = partyStat('tinkering');
+    if(state.parts>0 && tinkering>=4){
       state.parts--;
-      logMsg(`Axle trouble — repaired quickly using a spare part (Repair ${repair.toFixed(1)}).`, 'good');
+      logMsg(`Axle trouble — repaired quickly using a spare part (Tinkering ${tinkering.toFixed(1)}).`, 'good');
     } else if(state.parts<=0){
-      const dmg = Math.max(2, Math.round(6 - repair*0.4));
-      applyHealth(-dmg, `Wagon trouble strikes with no spare parts on hand (Repair ${repair.toFixed(1)} limited the damage).`);
+      const dmg = Math.max(2, Math.round(6 - tinkering*0.4));
+      applyHealth(-dmg, `Wagon trouble strikes with no spare parts on hand (Tinkering ${tinkering.toFixed(1)} limited the damage).`);
       state.distance = Math.max(0, state.distance-8);
     } else {
-      applyHealth(-5, `Wagon trouble slows the party — Repair ${repair.toFixed(1)} isn't quite enough for a clean fix.`);
+      applyHealth(-5, `Wagon trouble slows the party — Tinkering ${tinkering.toFixed(1)} isn't quite enough for a clean fix.`);
       state.distance = Math.max(0, state.distance-8);
     }
   } else if(r<0.92){
-    const perception = partyStat('perception');
-    if(Math.random()*10 < perception){ logMsg(`A thief was spotted and driven off (Perception ${perception.toFixed(1)}).`, 'good'); }
+    const leadership = partyStat('leadership');
+    if(Math.random()*10 < leadership){ logMsg(`A thief was spotted and driven off (Leadership ${leadership.toFixed(1)}).`, 'good'); }
     else { const loss = Math.min(state.cash, 10+Math.floor(Math.random()*20)); state.cash -= loss; logMsg(`Robbed in the night — lost ${loss} \u039e.`, 'bad'); }
   } else {
     const resist = partyStat('resist');
@@ -1562,12 +1590,12 @@ function forage(){
   if(state.over) return;
   if(state.foragesToday>=1){ logMsg("Already foraged today — travel or rest before trying again.", 'bad'); renderTrail(); return; }
   state.foragesToday++;
-  const foodStat = partyStat('food'), perception = partyStat('perception');
+  const scavenging = partyStat('scavenging');
   const roll = Math.random()*10;
-  if(roll < (foodStat+perception)/2){
+  if(roll < scavenging){
     const gain = 10+Math.floor(Math.random()*15);
     state.food += gain;
-    logMsg(`Foraged along the trailside — found ${gain} lb of food (Food ${foodStat.toFixed(1)}, Perception ${perception.toFixed(1)}).`, 'good');
+    logMsg(`Foraged along the trailside — found ${gain} lb of food (Scavenging ${scavenging.toFixed(1)}).`, 'good');
   } else {
     logMsg(`Foraged the roadside but came up empty-handed.`, 'bad');
   }
@@ -1591,8 +1619,8 @@ function triggerLandmark(lm){
   else if(lm.type==='hazard'){
     state.sceneMode='hazard';
     triggerBanter();
-    const resist = partyStat('resist'), repair = partyStat('repair');
-    const mitig = (resist+repair)/2;
+    const resist = partyStat('resist'), tinkering = partyStat('tinkering');
+    const mitig = (resist+tinkering)/2;
     const dmg = Math.max(3, Math.round(14 - mitig*0.8));
     applyHealth(-dmg, `${lm.name}: a major hazard tests the party (mitigation ${mitig.toFixed(1)}).`);
     renderTrail();
@@ -1706,8 +1734,8 @@ function openHunting(lm){
 function startHunt(){
   document.getElementById('hunt-start-btn').disabled = true;
   huntActive = true;
-  const combatBonus = partyStat('combat');
-  const spawnRate = Math.max(500, 900 - combatBonus*30);
+  const huntingSkill = partyStat('hunting');
+  const spawnRate = Math.max(500, 900 - huntingSkill*30);
   huntSpawnId = setInterval(spawnTarget, spawnRate);
   huntTimerId = setInterval(function(){
     huntTimeLeft--; document.getElementById('hunt-timer').textContent = huntTimeLeft;
@@ -1742,10 +1770,10 @@ function endHunt(){
   huntActive=false; clearInterval(huntSpawnId); clearInterval(huntTimerId);
   document.getElementById('modal-hunt').classList.add('hide');
   state.sceneMode='trail';
-  const foodStat = partyStat('food');
-  const gain = Math.round(huntHits*12 + foodStat*4);
+  const huntingSkill = partyStat('hunting');
+  const gain = Math.round(huntHits*12 + huntingSkill*4);
   state.food += gain;
-  logMsg(`${pendingLandmark.name}: hunted ${huntHits} game (+${gain} food, Food stat ${foodStat.toFixed(1)}).`, 'good');
+  logMsg(`${pendingLandmark.name}: hunted ${huntHits} game (+${gain} food, Hunting ${huntingSkill.toFixed(1)}).`, 'good');
   if(huntHits>0) completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
@@ -1759,8 +1787,8 @@ function openFishing(lm){
   document.getElementById('fish-title').textContent = lm.name + " — Fishing";
   document.getElementById('modal-fish').classList.remove('hide');
   fishRound=0; fishCatches=0; document.getElementById('fish-catches').textContent='0';
-  const riverStat = partyStat('river');
-  fishZoneWidth = 18 + riverStat*2;
+  const fishingSkill = partyStat('fishing');
+  fishZoneWidth = 18 + fishingSkill*2;
   nextFishRound();
 }
 function nextFishRound(){
@@ -1791,10 +1819,10 @@ function reelFish(){
 function endFishing(){
   document.getElementById('modal-fish').classList.add('hide');
   state.sceneMode='trail';
-  const riverStat = partyStat('river');
-  const gain = Math.round(fishCatches*16 + riverStat*3);
+  const fishingSkill = partyStat('fishing');
+  const gain = Math.round(fishCatches*16 + fishingSkill*3);
   state.food += gain;
-  logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 catches (+${gain} food, River stat ${riverStat.toFixed(1)}).`, 'good');
+  logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 catches (+${gain} food, Fishing ${fishingSkill.toFixed(1)}).`, 'good');
   if(fishCatches>0) completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
