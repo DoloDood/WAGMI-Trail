@@ -193,6 +193,9 @@
         <div><span class="eyebrow">Homestead</span><h2 id="home-welcome">Welcome back</h2></div>
         <div class="muted" style="text-align:right;">Trail Points<br><span id="home-points" style="font-family:'Fraunces',serif; font-size:22px; color:var(--gold); font-weight:600;">0</span></div>
       </div>
+
+      <div id="trail-record" style="margin:12px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:8px;"></div>
+
       <canvas id="wagonPreview" width="360" height="120" style="display:block; margin:10px auto; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:linear-gradient(180deg,#bfe3e0,#eaf6e6);"></canvas>
 
       <h3 style="margin-top:18px;">Wagon Upgrades</h3>
@@ -1111,7 +1114,9 @@ async function connectWallet(){
    since there's no account to attach it to.
    ============================================================ */
 const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
-  wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[] };
+  wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[],
+  lifetime_miles:0, lifetime_runs:0, lifetime_wins:0, lifetime_deaths:0,
+  lifetime_animals_hunted:0, lifetime_fish_caught:0, lifetime_rivers_crossed:0, lifetime_legendary_encounters:0 };
 let playerProfile = {...DEFAULT_PROFILE};
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
@@ -1157,6 +1162,10 @@ async function saveProfile(){
       wagon_canvas: playerProfile.wagon_canvas, wagon_trim: playerProfile.wagon_trim,
       wagon_wheel: playerProfile.wagon_wheel, wagon_accessory: playerProfile.wagon_accessory,
       wagon_unlocked: playerProfile.wagon_unlocked,
+      lifetime_miles: playerProfile.lifetime_miles, lifetime_runs: playerProfile.lifetime_runs,
+      lifetime_wins: playerProfile.lifetime_wins, lifetime_deaths: playerProfile.lifetime_deaths,
+      lifetime_animals_hunted: playerProfile.lifetime_animals_hunted, lifetime_fish_caught: playerProfile.lifetime_fish_caught,
+      lifetime_rivers_crossed: playerProfile.lifetime_rivers_crossed, lifetime_legendary_encounters: playerProfile.lifetime_legendary_encounters,
     }).eq('user_key', currentUser.email);
   }catch(e){ console.warn('Could not save profile to Supabase', e); }
 }
@@ -1176,8 +1185,49 @@ async function goToHome(){
   await loadProfile();
   renderHome();
 }
+const RANK_TIERS = [
+  {min:0,     label:'Greenhorn'},
+  {min:2000,  label:'Trailhand'},
+  {min:6000,  label:'Wagon Master'},
+  {min:15000, label:'Frontier Veteran'},
+  {min:35000, label:'Trail Legend'},
+  {min:70000, label:'Diamond Acres Founder'},
+];
+function currentRank(){
+  const miles = (playerProfile && playerProfile.lifetime_miles) || 0;
+  let rank = RANK_TIERS[0], idx = 0;
+  RANK_TIERS.forEach((t,i)=>{ if(miles>=t.min){ rank=t; idx=i; } });
+  const next = RANK_TIERS[idx+1] || null;
+  return {label:rank.label, miles, next};
+}
+function renderTrailRecord(){
+  const el = document.getElementById('trail-record');
+  if(!el || !playerProfile) return;
+  const rank = currentRank();
+  const p = playerProfile;
+  const winRate = p.lifetime_runs ? Math.round((p.lifetime_wins||0)/p.lifetime_runs*100) : 0;
+  const nextText = rank.next ? `${(rank.next.min-rank.miles).toLocaleString()}mi to ${rank.next.label}` : 'Max rank reached';
+  el.innerHTML = `
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <div style="font-family:'Fraunces',serif; font-size:22px; font-weight:700;">${rank.label}</div>
+      <div class="muted" style="font-size:11px;">${nextText}</div>
+    </div>
+    <div class="resource-strip">
+      <div class="resource-chip"><span class="label">Lifetime Miles</span><span class="value">${(p.lifetime_miles||0).toLocaleString()}</span></div>
+      <div class="resource-chip"><span class="label">Runs</span><span class="value">${p.lifetime_runs||0}</span></div>
+      <div class="resource-chip"><span class="label">Wins</span><span class="value">${p.lifetime_wins||0}</span></div>
+      <div class="resource-chip"><span class="label">Win Rate</span><span class="value">${winRate}%</span></div>
+      <div class="resource-chip"><span class="label">Deaths</span><span class="value">${p.lifetime_deaths||0}</span></div>
+      <div class="resource-chip"><span class="label">Animals Hunted</span><span class="value">${p.lifetime_animals_hunted||0}</span></div>
+      <div class="resource-chip"><span class="label">Fish Caught</span><span class="value">${p.lifetime_fish_caught||0}</span></div>
+      <div class="resource-chip"><span class="label">Rivers Crossed</span><span class="value">${p.lifetime_rivers_crossed||0}</span></div>
+      <div class="resource-chip"><span class="label">Legendary Encounters</span><span class="value">${p.lifetime_legendary_encounters||0}</span></div>
+    </div>
+  `;
+}
 function renderHome(){
   document.getElementById('home-points').textContent = (playerProfile.trail_points||0).toLocaleString();
+  renderTrailRecord();
   drawWagonPreview();
   renderUpgrades();
   renderWagonCustomize();
@@ -1698,19 +1748,25 @@ function renderPartyStrip(){
 
 /* ============================================================
    PARTY BANTER — procedural, context-aware dialogue in pixel
-   speech bubbles. Note: this is a curated line bank selected by
-   current scene context, not a live LLM call — a static site
-   with no backend can't safely hold an API key for that. Real
-   live-generated chat would need a small server-side proxy
-   (e.g. a Vercel function calling an LLM API) to keep a key
-   private; this gets the same "dynamic banter" feel without one.
+   speech bubbles. Note: this is a curated/templated line system,
+   not a live LLM call — a static site with no backend can't
+   safely hold an API key for that. Real live-generated chat
+   would need a small server-side proxy (e.g. a Vercel function
+   calling an LLM API) to keep a key private; this gets a similar
+   feel without one, two ways:
 
-   Lines are drawn from a shuffled queue per scene mode (not pure
-   random), so the whole pool cycles before anything repeats —
-   plain Math.random() on a small array repeats far sooner than
-   it feels like it should. A handful of lines are also generated
-   fresh from live state (other party members' names, day count,
-   distance remaining) so the pool feels bigger than it is.
+   1. Several line "kinds" (health, next-landmark, resources) are
+      built from live state — another party member's real name
+      and real health number, the actual next landmark and real
+      miles left, the actual food/cash/day count — so the exact
+      same template renders differently almost every time.
+   2. Openers can get a reply from a second party member a beat
+      later (and occasionally a short third capper line), so it
+      reads as a conversation instead of isolated one-liners.
+
+   The purely flavor lines (no state to hook into) still use a
+   shuffled per-mode queue so the whole pool cycles before any
+   line repeats.
    ============================================================ */
 const BANTER_LINES = {
   trail: [
@@ -1772,49 +1828,113 @@ const BANTER_LINES = {
     "I need a minute. This is a lot to process.",
   ],
 };
-
+function pickOne(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function shuffledCopy(arr){
   const a = arr.slice();
   for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
 }
-function dynamicBanterLines(mode){
-  if(!state) return [];
-  const alive = state.members.filter(m=>m.alive);
-  if(alive.length<2) return [];
-  const other = alive[Math.floor(Math.random()*alive.length)];
-  const leftMi = Math.max(0, Math.round(TRAIL_GOAL-state.distance));
-  const lines = [
-    `${other.name}, you doing okay back there?`,
-    `Day ${state.day} and I still trust ${other.name}'s judgment more than mine.`,
-    `${leftMi}mi left and my legs have already quit.`,
-    `Someone tell ${other.name} to stop humming that tune.`,
-  ];
-  if(mode==='trail') return lines;
-  return lines.slice(0,2);
-}
 let banterQueues = {};
-function nextBanterLine(mode){
+function nextFlavorLine(mode){
   if(!banterQueues[mode] || banterQueues[mode].length===0){
-    const pool = (BANTER_LINES[mode] || BANTER_LINES.trail).concat(dynamicBanterLines(mode));
-    banterQueues[mode] = shuffledCopy(pool);
+    banterQueues[mode] = shuffledCopy(BANTER_LINES[mode] || BANTER_LINES.trail);
   }
   return banterQueues[mode].pop();
 }
+
+function nextLandmarkInfo(){
+  if(!state) return null;
+  const nextIdx = state.passedLandmarks;
+  if(nextIdx>=LANDMARKS.length) return null;
+  const lm = LANDMARKS[nextIdx];
+  return {name: lm.name, milesLeft: Math.max(0, Math.round(lm.mile - state.distance))};
+}
+function healthLine(name, health){
+  if(health<35) return pickOne([`${name}, you doing okay? You look rough.`,`Someone check on ${name}, they're fading.`,`${name}, seriously, how are you holding up?`,`Is ${name} gonna make it? Asking for the group.`]);
+  if(health<70) return pickOne([`${name}, you holding together okay?`,`You've looked better, ${name}. You good?`,`${name}, be honest, how are you feeling?`]);
+  return pickOne([`${name}'s looking suspiciously fine for day ${state.day}.`,`How is ${name} still this chipper?`,`${name}, out here thriving while the rest of us suffer.`]);
+}
+function healthReply(name, health){
+  const h = Math.floor(Math.max(0,health));
+  if(health<35) return pickOne([`Honestly? Not great. ${h}%. I'll manage.`,`I've been better. Don't let me slow you down.`,`${h}%. I've had worse days. Probably.`]);
+  if(health<70) return pickOne([`I'm fine, ${h}% and holding.`,`Sore, but standing. That counts.`,`${h}%. Could be worse, could be better.`]);
+  return pickOne([`Never better. ${h}% and thriving.`,`I could do this trail twice.`,`${h}%. Someone's gotta keep morale up.`]);
+}
+function landmarkLine(lm){
+  return pickOne([`How much further to ${lm.name}?`,`Anyone know how far ${lm.name} is from here?`,`Tell me ${lm.name} is closer than it feels.`,`We getting to ${lm.name} today or what?`]);
+}
+function landmarkReply(lm){
+  return pickOne([`${lm.milesLeft}mi, give or take. We'll make it.`,`Only ${lm.milesLeft}mi. Basically nothing.`,`${lm.milesLeft}mi left. Don't ask me again in five minutes.`,`${lm.milesLeft}mi. I've mentally prepared for worse.`]);
+}
+function resourceLine(){
+  return pickOne([
+    `We're down to ${Math.floor(state.food)}lb of food.`,
+    `${state.ammo} rounds left. Let's not waste them.`,
+    `Day ${state.day} already? Feels longer.`,
+    `${Math.max(0,Math.floor(state.cash))}\u039e in the bank. Not exactly rich.`,
+    `${state.oxen} oxen still pulling. Could be worse.`,
+  ]);
+}
+function resourceReply(){
+  return pickOne([`We'll manage.`,`It's fine, we've survived worse.`,`Don't remind me.`,`We'll restock at the next town.`,`Could be worse. Could be a lot worse.`]);
+}
+function flavorReply(){
+  return pickOne([`Tell me about it.`,`Couldn't agree more.`,`Speak for yourself.`,`That's exactly what I was thinking.`,`Debatable, but sure.`,`Hard to argue with that.`]);
+}
+const BANTER_CAPPERS = ["Ha, fair.","Wow, thanks for that.","Noted.","...okay then.","Can't argue with that.","Duly noted."];
+
 let banterTimer = null;
 function startBanterLoop(){
   clearInterval(banterTimer);
   banterQueues = {};
-  banterTimer = setInterval(()=>{ if(Math.random()<0.7) triggerBanter(); }, 9000);
+  banterTimer = setInterval(()=>{ if(Math.random()<0.85) triggerBanter(); }, 5500);
 }
 function stopBanterLoop(){ clearInterval(banterTimer); }
 function triggerBanter(){
   if(!state) return;
   const aliveIdx = state.members.map((m,i)=>i).filter(i=>state.members[i].alive);
   if(aliveIdx.length===0) return;
-  const idx = aliveIdx[Math.floor(Math.random()*aliveIdx.length)];
-  const line = nextBanterLine(state.sceneMode);
-  showBubble(idx, line);
+
+  const nextLm = nextLandmarkInfo();
+  const kinds = ['flavor','flavor','resource'];
+  if(aliveIdx.length>=2) kinds.push('health','health');
+  if(nextLm) kinds.push('landmark','landmark');
+  const kind = pickOne(kinds);
+
+  const aIdx = aliveIdx[Math.floor(Math.random()*aliveIdx.length)];
+  const others = aliveIdx.filter(i=>i!==aIdx);
+
+  let openerText, replyFn = null, targetIdx = others.length ? pickOne(others) : null;
+
+  if(kind==='health' && others.length){
+    const target = state.members[targetIdx];
+    openerText = healthLine(target.name, target.health);
+    replyFn = ()=>healthReply(target.name, target.health);
+  } else if(kind==='landmark' && nextLm){
+    openerText = landmarkLine(nextLm);
+    replyFn = ()=>landmarkReply(nextLm);
+  } else if(kind==='resource'){
+    openerText = resourceLine();
+    replyFn = ()=>resourceReply();
+  } else {
+    openerText = nextFlavorLine(state.sceneMode);
+    replyFn = Math.random()<0.5 ? flavorReply : null;
+  }
+
+  showBubble(aIdx, openerText);
+
+  if(replyFn && targetIdx!==null && Math.random()<0.7){
+    setTimeout(()=>{
+      if(!state || !state.members[targetIdx] || !state.members[targetIdx].alive) return;
+      showBubble(targetIdx, replyFn());
+      if(Math.random()<0.3){
+        setTimeout(()=>{
+          if(!state || !state.members[aIdx] || !state.members[aIdx].alive) return;
+          showBubble(aIdx, pickOne(BANTER_CAPPERS));
+        }, 1700);
+      }
+    }, 1800);
+  }
 }
 function showBubble(idx, text){
   const b = document.getElementById('bubble-'+idx);
@@ -1965,6 +2085,7 @@ function triggerLandmark(lm){
     const ownsLegendary = state.members.some(m=>m.rarity==='Legendary');
     if(ownsLegendary){ logMsg(`${lm.name}: your legendary party member is recognized by the trail spirits — full party heal.`, 'chain'); state.members.forEach(m=>{ if(m.alive) m.health = 100; }); }
     else { state.food += 40; state.cash += 30; logMsg(`${lm.name}: a legendary 1/1 wanderer passes through camp and leaves a gift (+40 food, +30 \u039e).`, 'chain'); }
+    if(playerProfile) playerProfile.lifetime_legendary_encounters = (playerProfile.lifetime_legendary_encounters||0) + 1;
     renderTrail();
     setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
   }
@@ -2225,7 +2346,10 @@ function endHunt(){
   if(wasted>0) msg += ` — left ${Math.round(wasted)}lb of meat behind, couldn't carry it all`;
   msg += '.';
   logMsg(msg, wasted>0 ? 'bad' : 'good');
-  if(huntHits>0) completeQuest('quest_minigame_done', 20);
+  if(huntHits>0){
+    completeQuest('quest_minigame_done', 20);
+    if(playerProfile) playerProfile.lifetime_animals_hunted = (playerProfile.lifetime_animals_hunted||0) + huntHits;
+  }
   renderTrail();
 }
 
@@ -2302,7 +2426,10 @@ function endFishing(){
   const summary = fishCatchLog.length ? fishCatchLog.map(f=>`${f.name} ${f.weight.toFixed(1)}lb`).join(', ') : 'nothing worth keeping';
   logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 casts — ${summary} (${totalWeight.toFixed(1)}lb total, +${gain} food, Fishing ${fishingSkill.toFixed(1)}).`, 'good');
   if(RIVER_LANDMARKS.includes(pendingLandmark)) state.fishedRivers.add(pendingLandmark.name);
-  if(fishCatches>0) completeQuest('quest_minigame_done', 20);
+  if(fishCatches>0){
+    completeQuest('quest_minigame_done', 20);
+    if(playerProfile) playerProfile.lifetime_fish_caught = (playerProfile.lifetime_fish_caught||0) + fishCatches;
+  }
   renderTrail();
 }
 
@@ -2468,6 +2595,7 @@ function endRafting(){
     logMsg(`${pendingLandmark.name}: forded the river clean, no damage taken.`, 'good');
   }
   completeQuest('quest_minigame_done', 20);
+  if(playerProfile) playerProfile.lifetime_rivers_crossed = (playerProfile.lifetime_rivers_crossed||0) + 1;
   renderTrail();
 }
 
@@ -2735,6 +2863,10 @@ function endRun(success){
   document.getElementById('trail-points-earned').textContent = `+${pointsEarned} Trail Points earned`;
   (async()=>{
     playerProfile.trail_points = (playerProfile.trail_points||0) + pointsEarned;
+    playerProfile.lifetime_miles = (playerProfile.lifetime_miles||0) + Math.floor(Math.min(state.distance,TRAIL_GOAL));
+    playerProfile.lifetime_runs = (playerProfile.lifetime_runs||0) + 1;
+    if(success) playerProfile.lifetime_wins = (playerProfile.lifetime_wins||0) + 1;
+    else playerProfile.lifetime_deaths = (playerProfile.lifetime_deaths||0) + 1;
     if(success) await completeQuest('quest_finish_done', 50);
     await saveProfile();
   })();
