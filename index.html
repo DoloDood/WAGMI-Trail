@@ -81,6 +81,13 @@
   .mini-hp-fill{height:100%; background:linear-gradient(90deg,var(--good),#8fc47a);}
   .mini-hp-fill.low{background:linear-gradient(90deg,var(--danger),#e0715f);}
   .mini-hp-label{font-size:9px; color:#6a5d44; margin-top:1px;}
+  .status-badge{font-size:8.5px; margin-top:3px; padding:1px 5px; border-radius:8px; display:inline-block; font-weight:600;}
+  .status-badge.ok{background:rgba(60,140,60,.15); color:#2e7d32;}
+  .status-badge.weak{background:rgba(200,150,40,.18); color:#8a6512;}
+  .status-badge.sick{background:rgba(190,60,60,.18); color:#b23a2f;}
+  .home-tab-btn{background:none; border:none; border-bottom:2px solid transparent; padding:8px 10px; font-family:inherit; font-size:13px; color:#6a5d44; cursor:pointer; font-weight:600;}
+  .home-tab-btn.active{color:#2b2318; border-bottom-color:var(--chain-cyan);}
+  .home-tab-btn:hover{color:#2b2318;}
   .bubble{
     position:absolute; bottom:100%; left:50%; transform:translateX(-50%) translateY(6px) scale(.85);
     background:var(--parchment); color:var(--ink); border:2px solid var(--ink); border-radius:6px;
@@ -174,8 +181,16 @@
     <div class="panel" style="text-align:center; padding:44px 20px;">
       <span class="eyebrow">Step 1 of 3</span>
       <h2>Sign In</h2>
-      <p class="muted" style="max-width:420px; margin:8px auto 20px;">Sign in with Google and pick a username. This is what shows up on the leaderboard.</p>
+      <p class="muted" style="max-width:420px; margin:8px auto 20px;">Sign in with Google, or with just an email if you don't have a Gmail account. Your username is what shows up on the leaderboard.</p>
       <div id="google-signin-btn" style="display:flex; justify-content:center; margin:10px 0 6px;"></div>
+      <div style="margin:16px 0; color:#9a8b6f; font-size:12px;">— or —</div>
+      <div id="email-login-step">
+        <div class="row" style="justify-content:center; gap:6px; flex-wrap:wrap;">
+          <input type="email" id="email-input" placeholder="you@email.com" style="max-width:220px;">
+          <button class="btn small" onclick="sendMagicLink()">Email Me a Login Link</button>
+        </div>
+        <p class="muted" id="email-login-status" style="font-size:11px; margin-top:6px; max-width:380px; margin-left:auto; margin-right:auto;"></p>
+      </div>
       <div id="username-step" class="hide" style="margin-top:14px;">
         <p class="muted" id="signed-in-as"></p>
         <div class="row" style="justify-content:center; margin-top:8px;">
@@ -196,26 +211,44 @@
 
       <div id="trail-record" style="margin:12px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:8px;"></div>
 
-      <h3 style="margin-top:8px;">Choose Your Route</h3>
-      <p class="muted">Your active route applies to your next run. Unlock new ones with Trail Points.</p>
-      <div id="route-list" class="fork-options"></div>
+      <div id="route-summary" style="margin:10px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;"></div>
 
-      <canvas id="wagonPreview" width="360" height="120" style="display:block; margin:10px auto; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:linear-gradient(180deg,#bfe3e0,#eaf6e6);"></canvas>
+      <div class="home-tabs" style="display:flex; gap:6px; margin:16px 0 12px; border-bottom:1px solid rgba(43,35,24,.15); flex-wrap:wrap;">
+        <button class="home-tab-btn active" data-tab="wagon" onclick="switchHomeTab('wagon')">🐴 Wagon</button>
+        <button class="home-tab-btn" data-tab="routes" onclick="switchHomeTab('routes')">🗺️ Routes</button>
+        <button class="home-tab-btn" data-tab="bestiary" onclick="switchHomeTab('bestiary')">📖 Bestiary</button>
+        <button class="home-tab-btn" data-tab="tasks" onclick="switchHomeTab('tasks')">✅ Tasks</button>
+        <button class="home-tab-btn" data-tab="leaderboard" onclick="switchHomeTab('leaderboard')">🏆 Leaderboard</button>
+      </div>
 
-      <h3 style="margin-top:18px;">Wagon Perks <span class="muted" id="perk-progress" style="font-size:11px; font-weight:400;"></span></h3>
-      <p class="muted">Spend Trail Points earned from finished runs. Perks apply to every future run automatically — some require an earlier perk in the same line first.</p>
-      <div id="upgrade-list" class="store-grid"></div>
+      <div id="home-tab-wagon" class="home-tab-panel">
+        <canvas id="wagonPreview" width="360" height="120" style="display:block; margin:10px auto; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:linear-gradient(180deg,#bfe3e0,#eaf6e6);"></canvas>
+        <h3 style="margin-top:18px;">Wagon Perks <span class="muted" id="perk-progress" style="font-size:11px; font-weight:400;"></span></h3>
+        <p class="muted">Spend Trail Points earned from finished runs. Perks apply to every future run automatically — some require an earlier perk in the same line first.</p>
+        <div id="upgrade-list" class="store-grid"></div>
+        <h3 style="margin-top:18px;">Customize Your Wagon</h3>
+        <p class="muted">Purely cosmetic — unlock a piece once, then swap freely between anything you own, any time.</p>
+        <div id="wagon-customize"></div>
+      </div>
 
-      <h3 style="margin-top:18px;">Customize Your Wagon</h3>
-      <p class="muted">Purely cosmetic — unlock a piece once, then swap freely between anything you own, any time.</p>
-      <div id="wagon-customize"></div>
+      <div id="home-tab-routes" class="home-tab-panel hide">
+        <p class="muted">Your active route applies to your next run. Unlock new ones with Trail Points.</p>
+        <div id="route-list" class="fork-options"></div>
+      </div>
 
-      <h3 style="margin-top:18px;">Bestiary</h3>
-      <div id="bestiary-list"></div>
+      <div id="home-tab-bestiary" class="home-tab-panel hide">
+        <div id="bestiary-list"></div>
+      </div>
 
-      <h3 style="margin-top:18px;">Daily Trail Tasks</h3>
-      <p class="muted" id="quest-reset-note">Resets once per day. Complete these during a run to earn bonus Trail Points.</p>
-      <div id="quest-list"></div>
+      <div id="home-tab-tasks" class="home-tab-panel hide">
+        <p class="muted" id="quest-reset-note">Resets once per day. Complete these during a run to earn bonus Trail Points.</p>
+        <div id="quest-list"></div>
+      </div>
+
+      <div id="home-tab-leaderboard" class="home-tab-panel hide">
+        <p class="muted">Top scores across all players, updated live.</p>
+        <div class="lb-wrap"><table class="lb" id="leaderboard-table-home"></table></div>
+      </div>
 
       <div class="row between" style="margin-top:20px; border-top:1px solid rgba(43,35,24,.15); padding-top:14px;">
         <div class="muted" id="home-persist-note"></div>
@@ -350,11 +383,17 @@
   <div id="modal-forage" class="modal-bg hide">
     <div class="modal">
       <h3><img id="forage-icon" class="pixel" width="20" height="20"><span id="forage-title">Foraging</span></h3>
-      <p class="muted">Move your mouse (or finger) to slide the basket. Berries and apples are worth food — thorns cost you a little. <span id="forage-timer">10</span>s left.</p>
-      <canvas id="forageCanvas" width="400" height="240"></canvas>
-      <div class="row between">
-        <div class="muted">Caught: <b id="forage-catches">0</b> &nbsp;|&nbsp; Thorns: <b id="forage-thorns">0</b></div>
-        <button class="btn" id="forage-start-btn" onclick="startForage()">Start Foraging</button>
+      <div id="forage-play-area">
+        <p class="muted">Move your mouse (or finger) to slide the basket. Berries and apples are worth food — hit a thorn and it's over. <span id="forage-timer">16</span>s left.</p>
+        <canvas id="forageCanvas" width="400" height="240"></canvas>
+        <div class="row between">
+          <div class="muted">Caught: <b id="forage-catches">0</b></div>
+          <button class="btn" id="forage-start-btn" onclick="startForage()">Start Foraging</button>
+        </div>
+      </div>
+      <div id="forage-results" class="hide">
+        <div class="npc-quote" id="forage-results-text" style="text-align:center; font-style:normal; font-weight:600; margin:14px 0;"></div>
+        <div style="text-align:center;"><button class="btn chain" onclick="closeForageModal()">Continue</button></div>
       </div>
     </div>
   </div>
@@ -1078,68 +1117,295 @@ function rarityComponent(counts, value){
   return TOTAL_REGULAR_SUPPLY / counts[value];
 }
 
+const BODY_SKILLS = {
+  'Farmer': {scavenging:3, hunting:1},
+  'Constructor': {tinkering:3, scavenging:1},
+  'Strong Man': {hunting:2, rafting:2},
+  'Grave Digger': {tinkering:2, scavenging:1},
+  'Blue Collar': {tinkering:2, scavenging:2},
+  'Train Conductor': {tinkering:3, scavenging:1},
+  'Postman': {tinkering:3, scavenging:1},
+  'WW1 Soldier': {hunting:3, resist:1},
+  'WW2 Soldier': {hunting:3, resist:1},
+  'Pilot': {tinkering:3, resist:1},
+  'Canadian Police': {leadership:2, hunting:1},
+  'General': {leadership:4},
+  'Prisoner': {scavenging:2, leadership:-1},
+  'Bandit': {scavenging:3, leadership:-1},
+  'Punk': {scavenging:2, leadership:-1},
+  'Leather Jacket': {scavenging:1, rafting:1, leadership:-1},
+  'Accountant': {tinkering:3, medicine:1},
+  'Scientist': {medicine:4},
+  'Gentleman': {leadership:2, medicine:1},
+  'Judge': {leadership:4},
+  'Bartender': {medicine:2, leadership:1},
+  'Sexy & She Knows It': {leadership:2},
+  'Beach Day': {fishing:2, resist:1},
+  'Best Man': {leadership:2, medicine:1},
+  'Sea Captain': {rafting:5},
+  'Admiral': {rafting:4, tinkering:1},
+  'Bedouin Robe': {scavenging:2, resist:2},
+  'Sheikh Robe': {resist:2, scavenging:1},
+  'Tyrolean': {tinkering:2, scavenging:1},
+  'Cute Jumper': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Comfy Hoodie': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Tank Top': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Don\'t Worry': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Brown Coat': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Flannel': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Sweater Weather': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'White Tank': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+};
+
+const HAND_SKILLS = {
+  'Cavalry Sword': {hunting:3},
+  'Revolver': {hunting:4},
+  'WW1 Rifle': {hunting:4},
+  'WW1 Grenade': {hunting:2, tinkering:2},
+  'Whip': {hunting:3},
+  'Hand Axe': {hunting:2, tinkering:2},
+  'Combat Knife': {hunting:3, scavenging:1},
+  'Cutlass': {hunting:2, rafting:2},
+  'Dynamite': {tinkering:3, hunting:1},
+  'WW2 Rifle': {hunting:4},
+  'Shovel': {tinkering:2, scavenging:2},
+  'Pickaxe': {tinkering:3, scavenging:1},
+  'Hammer': {tinkering:4},
+  'Brush': {tinkering:2, medicine:1},
+  'Test Tube': {medicine:4},
+  'Notepad': {tinkering:3},
+  'Fourche': {scavenging:3, tinkering:1},
+  'Sicle': {scavenging:3, hunting:1},
+  'Black Sheep': {scavenging:3},
+  'Baby Monkey': {scavenging:2, fishing:1},
+  'Parrot': {scavenging:1, fishing:1},
+  'Mouse': {scavenging:2, tinkering:1},
+  'Goat': {scavenging:3},
+  'Dog': {hunting:2, scavenging:1},
+  'Cat': {scavenging:2, hunting:1},
+  'Chicken': {scavenging:3},
+  'Duckling': {fishing:2, scavenging:1},
+  'Frog': {fishing:3},
+  'Piglet': {scavenging:3},
+  'Calf': {scavenging:2, tinkering:1},
+  'Amber': {scavenging:3},
+  'Pearl': {fishing:3},
+  'Sapphire': {leadership:3},
+  'Emerald': {leadership:2, scavenging:1},
+  'Ruby': {leadership:3},
+  'Diamond': {leadership:3, tinkering:1},
+  'Chalice': {leadership:2, medicine:1},
+  'Beads': {scavenging:2},
+  'Corona': {medicine:2},
+  'Bottle': {medicine:2},
+  'Cup': {medicine:2},
+  'Popsicle': {medicine:2, fishing:1},
+  'Blunt': {medicine:2},
+  'Whiskey': {medicine:3},
+  'Lighter': {tinkering:2, medicine:1},
+  'Coffee': {medicine:3},
+  'Pipe': {medicine:2, tinkering:1},
+  'Apple': {medicine:2, scavenging:1},
+  'Meat On A Stick': {medicine:1, hunting:2},
+  'Tesla': {tinkering:3},
+  'Big Red Button': {tinkering:2, hunting:1},
+  'Torch': {resist:2, tinkering:1},
+  'Dumbbell': {hunting:1, rafting:2},
+  'Microphone': {leadership:3},
+  'Clean': {medicine:2, resist:1},
+  'Square Up': {hunting:2, resist:1},
+  'Roll of Parchment': {medicine:1, tinkering:2},
+  'Bouquet': {medicine:2},
+  'Cane': {medicine:3},
+  'Envelope': {tinkering:2},
+  'Skull': {resist:2, hunting:1},
+  'Gavel': {leadership:4},
+};
+
+const HEAD_SKILLS = {
+  'Siberian Wool': {resist:3},
+  'Chill Beanie': {resist:2, scavenging:1},
+  'Ski Goggles': {resist:2, hunting:1},
+  'Raccoon Cap': {resist:2, hunting:2},
+  'Straw Hat': {scavenging:3, hunting:1},
+  'Cowboy Hat': {hunting:2, rafting:2},
+  'Cowgirl Hat': {hunting:2, rafting:1, scavenging:1},
+  'Fedora': {leadership:3},
+  'Keffiyeh': {resist:3, scavenging:1},
+  'Sheikh': {resist:3, leadership:1},
+  'Beekeeper': {medicine:3, resist:1},
+  'Scientist': {medicine:4},
+  'Chef': {medicine:2, scavenging:2},
+  'Miner': {tinkering:3, scavenging:1},
+  'Painter': {tinkering:3},
+  'Postman': {tinkering:3, scavenging:1},
+  'Bandit': {scavenging:3, leadership:-1},
+  'Nomad': {scavenging:2, tinkering:1},
+  'Prisoner': {scavenging:2, leadership:-1},
+  'Fox': {scavenging:3, hunting:1},
+  'Diver': {fishing:3, rafting:1},
+  'The Judge': {leadership:4},
+  'Square Crown': {leadership:4},
+  'General': {leadership:3, hunting:1},
+  'Mr. T': {leadership:2, hunting:1},
+  'WW2 Helmet': {hunting:2, leadership:1},
+  'Canadian Police': {leadership:2, scavenging:1},
+  'Fez': {leadership:1, medicine:1},
+  'Top Hat': {leadership:2},
+  'Pilgrim': {leadership:1, resist:2},
+  'Pilot': {tinkering:3, resist:1},
+  'Prospector': {scavenging:2, tinkering:2},
+  'Farmer': {scavenging:3, hunting:1},
+  'Tyrolean': {tinkering:2, resist:1},
+  'Bear': {hunting:3, resist:1},
+  'Bald I': {resist:1},
+  'Bald II': {resist:1},
+  'White Braids': {medicine:1},
+  'Purple Double Buns': {fishing:1},
+  'The Bob': {scavenging:1},
+  'Pretty In Pink': {medicine:1},
+  'The Harley Quinn': {hunting:1},
+  'Blue Pig Tails': {fishing:1},
+  'Dreads': {scavenging:1},
+  'Pompadour': {tinkering:1},
+  'Slick Back Hair': {leadership:1},
+};
+
+const EYES_SKILLS = {
+  'Awake': {hunting:2, fishing:1},
+  'Sus': {scavenging:2, hunting:1},
+  'Cat': {fishing:2, hunting:1},
+  'Dove': {medicine:2},
+  'Monocle': {leadership:3},
+  'Gold Sunnies': {fishing:2},
+  'Victorian Sunnies': {fishing:2, leadership:1},
+  'Squint': {hunting:2, fishing:1},
+  'Doubtful': {scavenging:1, resist:1},
+  'Wide Green': {fishing:2, hunting:1},
+  'Deep Blue': {fishing:2, hunting:1},
+  'Scowl': {hunting:2},
+  'Dead': {hunting:-1, fishing:-1},
+  'Blind': {hunting:-2, fishing:-2},
+  'One Eye Blind': {hunting:-1, fishing:-1},
+  'Cross Eyes': {hunting:-1, fishing:-1},
+  'Black Squares': {hunting:-1, leadership:-1},
+  'Demon': {leadership:-1, resist:1},
+  'Closed': {hunting:-1, fishing:-1},
+  'Tired': {hunting:-1, medicine:-1},
+  'Bloodshot': {hunting:-1, medicine:-1},
+  'Scarred': {resist:2, hunting:-1},
+  'Eye Patch': {hunting:-1, rafting:1},
+  'In Their Feels': {medicine:1, leadership:-1},
+  'Sad': {leadership:-1},
+  'Happy': {leadership:2},
+  'Angry': {hunting:1, leadership:-1},
+  'Scared': {leadership:-1, resist:-1},
+  'Annoyed': {leadership:-1},
+  'Crazy': {hunting:1, leadership:-1},
+  'Puppy Eyes': {medicine:2},
+  'Wink': {leadership:2},
+  'Tense': {resist:1, leadership:-1},
+  'Misfit': {scavenging:2},
+  'Snake Eyes': {scavenging:2},
+  'Gray Brows': {medicine:2},
+  'Cult Leader': {leadership:3},
+  'Bandit': {scavenging:2, leadership:-1},
+  'Nomad': {scavenging:2, tinkering:1},
+  'Vert': {scavenging:1, resist:1},
+  'Tiny': {scavenging:1},
+  'Large Teal': {resist:1, rafting:1},
+  'Blue': {resist:1, fishing:1},
+};
+
+const FACE_SKILLS = {
+  'Candy Girl': {leadership:1},
+  'Cheeky Girl': {leadership:1},
+  'Bubbles': {medicine:1, leadership:1},
+  'Elven Queen': {leadership:2},
+  'Girl Next Door': {medicine:2},
+  'Her Kiss': {leadership:1},
+  'Smiling Queen': {leadership:2},
+  'Trim and Proper': {leadership:2},
+  'Normie': {leadership:1},
+  'Double Braids': {scavenging:1},
+  'Ahhhhh': {leadership:-1, resist:1},
+  'Scream': {leadership:-1, hunting:1},
+  'Shocked': {leadership:-1},
+  'Annoyed': {leadership:-1},
+  'Teeth Check': {leadership:-1, medicine:1},
+  'Tongue Out': {leadership:-1, scavenging:1},
+  'Teardrop Tat': {leadership:-1, scavenging:1},
+  'Thick Stache': {hunting:2},
+  'Slick Beard': {hunting:1, resist:1},
+  'Dreaded Beard': {scavenging:2, hunting:1},
+  'Gold Beard': {scavenging:2},
+  'Goatie': {hunting:2},
+  'French Fork': {hunting:1, resist:1},
+  'Rollie Stache': {hunting:2},
+  'Braided Beard': {tinkering:1, hunting:1, scavenging:1},
+  'Beard Only': {hunting:1, resist:1},
+  'Fu Manchu': {hunting:2},
+  'Real Man Stache': {hunting:2},
+  'Mutton Chops': {hunting:2},
+  'White Goatie': {medicine:2},
+  'Short-White Beard': {medicine:2},
+  'Old and Gray': {medicine:3},
+  'Grey Burns': {medicine:3},
+  'Prospector': {scavenging:2, tinkering:2},
+  'Prisoner': {scavenging:2, leadership:-1},
+  'Bandit': {scavenging:2, leadership:-1},
+  'Nomad': {scavenging:2, tinkering:1},
+  'Pirate': {rafting:2, hunting:1},
+  'Karate': {hunting:2, rafting:1},
+  'Punk Girl': {scavenging:1, leadership:-1},
+  'Strong Man': {hunting:2, rafting:2},
+  'Scarred': {resist:3, hunting:1},
+};
+
+const BIOME_SKILLS = {
+  'Prairie': {scavenging:2},
+  'Canyon': {resist:2, rafting:1},
+  'Factory': {tinkering:2},
+  'Welcome': {leadership:1},
+  'Homestead': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
+  'Open Sky': {resist:2},
+};
+
 function computeMemberFromAttributes(tokenId, meta, idx){
   const attrs = (meta && meta.attributes) || [];
   const get = t=>{ const a=attrs.find(x=>x.trait_type===t); return a?a.value:null; };
   const legendaryName = detectLegendaryName(meta, attrs);
   const bodyVal = get('Body'), handVal = get('Hand Item'), headVal = get('Head'), eyesVal = get('Eyes'), faceVal = get('Face'), bgVal = get('Background'), genderVal = get('Gender');
   const bodyB = BODY_MAP[bodyVal] || 'Everyday';
-  const handB = HAND_MAP[handVal] || 'Comfort';
-  const headB = HEAD_MAP[headVal] || 'Cosmetic';
-  const eyesB = EYES_MAP[eyesVal] || 'Morale';
-  const faceB = FACE_MAP[faceVal] || 'FacialHair';
   const biome = BG_MAP[bgVal] || 'Homestead';
 
-  // Seven active skills (Hunting, Scavenging, Fishing, Rafting, Tinkering,
-  // Medicine, Leadership), each driven by a distinct set of trait buckets so
-  // no two skills lean on the same source. Resist is a passive layer (like
-  // clothing) that quietly softens environmental hazard damage rather than
-  // being a "do something" skill of its own.
-  // All seven skills share the same base (3) — Leadership previously
-  // inherited the old "morale" stat's higher base (5) plus absorbed
-  // secondary bonuses from nearly every trait bucket in the game, making
-  // it systematically the highest stat on most characters. Rafting is
-  // untouched here by design request; everything else was audited and
-  // trimmed so each skill draws from a comparable number of buckets.
+  // Skill bonuses come from each INDIVIDUAL trait value, not its bucket —
+  // a Straw Hat and a Fedora used to give identical bonuses just because
+  // both fell under the "HeatRes" bucket. Now every one of the 230
+  // Body/Hand Item/Head/Eyes/Face trait values has its own hand-picked
+  // bonus matched to its real-world theme (Straw Hat -> farmer ->
+  // Scavenging/Hunting; Fedora -> dapper -> Leadership; etc), looked up
+  // directly below. Background stays biome-level: the individual trait
+  // names within a biome (e.g. "Prairie Rose" vs "Prairie Sea") are just
+  // color variants of the same scene, not distinct themes to split apart.
   let hunting=3, scavenging=3, fishing=3, rafting=3, tinkering=3, medicine=3, leadership=3, resist=3;
-  if(bodyB==='Laborer') scavenging+=4;
-  if(bodyB==='Military'){ hunting+=4; rafting+=1; }
-  if(bodyB==='Outlaw'){ scavenging+=2; leadership-=1; }
-  if(bodyB==='Professional') medicine+=3;
-  if(bodyB==='Social') leadership+=4;
-  if(bodyB==='Maritime') rafting+=5;
-  if(bodyB==='Wanderer'){ scavenging+=2; tinkering+=1; }
-  if(bodyB==='Everyday'){ hunting+=1; scavenging+=1; fishing+=1; rafting+=1; tinkering+=1; medicine+=1; leadership+=1; }
-  if(handB==='Weapons') hunting+=4;
-  if(handB==='Tools') tinkering+=4;
-  if(handB==='CompanionAnimals') scavenging+=2;
-  if(handB==='Valuables') leadership+=1;
-  if(handB==='Comfort'){ medicine+=2; fishing+=1; }
-  if(handB==='Authority') leadership+=3;
-  // Wildcard hand items intentionally get no stat bonus — they stay pure
-  // event-trigger flavor rather than being forced into a skill.
-  if(headB==='ColdRes'||headB==='HeatRes') resist+=3;
-  if(headB==='Disease') medicine+=3;
-  if(headB==='Repair') tinkering+=3;
-  if(headB==='Evasion') scavenging+=2;
-  if(headB==='Authority') leadership+=2;
-  if(headB==='Route') tinkering+=2;
-  // Cosmetic Head bucket stays genuinely cosmetic — no stat bonus.
-  if(eyesB==='Sharp'){ hunting+=2; fishing+=2; leadership+=1; }
-  if(eyesB==='Impaired'){ hunting-=1; fishing-=1; }
-  if(eyesB==='Morale') leadership+=1;
-  if(faceB==='PosSocial') leadership+=1;
-  if(faceB==='NegSocial') leadership-=1;
-  if(faceB==='FacialHair') hunting+=1;
-  if(faceB==='Wisdom') medicine+=2;
-  if(faceB==='Faction') scavenging+=1;
-  if(faceB==='Toughness'){ hunting+=1; rafting+=1; }
-  if(biome==='Prairie') scavenging+=2;
-  if(biome==='Canyon'){ resist+=2; rafting+=1; }
-  if(biome==='Factory') tinkering+=2;
-  if(biome==='Welcome') leadership+=1;
-  if(biome==='Homestead'){ hunting+=1; scavenging+=1; fishing+=1; rafting+=1; tinkering+=1; medicine+=1; leadership+=1; }
-  if(biome==='Open Sky') resist+=2;
+  const addBonus = b=>{
+    if(!b) return;
+    if(b.hunting) hunting+=b.hunting;
+    if(b.scavenging) scavenging+=b.scavenging;
+    if(b.fishing) fishing+=b.fishing;
+    if(b.rafting) rafting+=b.rafting;
+    if(b.tinkering) tinkering+=b.tinkering;
+    if(b.medicine) medicine+=b.medicine;
+    if(b.leadership) leadership+=b.leadership;
+    if(b.resist) resist+=b.resist;
+  };
+  addBonus(BODY_SKILLS[bodyVal]);
+  addBonus(HAND_SKILLS[handVal]);
+  addBonus(HEAD_SKILLS[headVal]);
+  addBonus(EYES_SKILLS[eyesVal]);
+  addBonus(FACE_SKILLS[faceVal]);
+  addBonus(BIOME_SKILLS[biome]);
 
   const clamp = v=>Math.max(0, Math.min(10, Math.round(v)));
   let rarity, mult, rarityScore=null;
@@ -1445,9 +1711,26 @@ function renderTrailRecord(){
     </div>
   `;
 }
+function switchHomeTab(tab){
+  document.querySelectorAll('.home-tab-panel').forEach(el=>el.classList.add('hide'));
+  document.querySelectorAll('.home-tab-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('home-tab-'+tab).classList.remove('hide');
+  document.querySelector(`.home-tab-btn[data-tab="${tab}"]`).classList.add('active');
+  if(tab==='leaderboard') renderLeaderboard('leaderboard-table-home');
+}
+function renderRouteSummary(){
+  const el = document.getElementById('route-summary');
+  if(!el || !playerProfile) return;
+  const r = activeRoute();
+  el.innerHTML = `
+    <div><b>${r.label}</b> <span class="muted">— ${r.goalMiles.toLocaleString()}mi active route</span></div>
+    <button class="btn small" onclick="switchHomeTab('routes')">Change Route</button>
+  `;
+}
 function renderHome(){
   document.getElementById('home-points').textContent = (playerProfile.trail_points||0).toLocaleString();
   renderTrailRecord();
+  renderRouteSummary();
   renderRoutes();
   drawWagonPreview();
   renderUpgrades();
@@ -1649,6 +1932,56 @@ function confirmUsername(){
   showUserBadge();
   goToHome();
 }
+async function sendMagicLink(){
+  const emailInput = document.getElementById('email-input');
+  const statusEl = document.getElementById('email-login-status');
+  const email = emailInput.value.trim();
+  if(!email || !email.includes('@')){ statusEl.textContent = 'Enter a valid email address.'; return; }
+  const client = getSupabase();
+  if(!client){ statusEl.textContent = "Email sign-in isn't available right now — try Google or Guest below."; return; }
+  statusEl.textContent = 'Sending your login link…';
+  try{
+    const { error } = await client.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
+    if(error){ statusEl.textContent = "Couldn't send the link: " + error.message; return; }
+    statusEl.textContent = `Check ${email} for a login link, then come back here — clicking it signs you in automatically.`;
+  }catch(e){
+    console.warn('Magic link send failed', e);
+    statusEl.textContent = "Couldn't send the link — try again in a moment.";
+  }
+}
+// Called once on page load to catch someone returning from their emailed
+// magic link. Supabase parses the auth token out of the URL automatically
+// (detectSessionInUrl, on by default), so a live session here means they
+// just clicked through — route them the same way a fresh Google sign-in
+// would be routed, reusing the same username-check flow either way.
+async function checkEmailAuthSession(){
+  const client = getSupabase();
+  if(!client) return false;
+  try{
+    const { data } = await client.auth.getSession();
+    const email = data && data.session && data.session.user && data.session.user.email;
+    if(!email) return false;
+    currentUser = { email, name: email.split('@')[0], picture:null, username:null };
+    try{
+      const { data: profileData, error } = await client.from('player_profiles').select('username').eq('user_key', email).maybeSingle();
+      if(!error && profileData && profileData.username){
+        currentUser.username = profileData.username;
+        showUserBadge();
+        goToHome();
+        return true;
+      }
+    }catch(e){ console.warn('Could not check for an existing username', e); }
+    show('screen-login');
+    startMusic();
+    document.getElementById('signed-in-as').textContent = `Signed in as ${email}`;
+    document.getElementById('username-step').classList.remove('hide');
+    document.getElementById('username-input').value = email.split('@')[0];
+    return true;
+  }catch(e){
+    console.warn('Session check failed', e);
+    return false;
+  }
+}
 function skipLogin(){
   currentUser = { email:null, name:'Guest', picture:null, username:'Guest'+Math.floor(1000+Math.random()*9000) };
   showUserBadge();
@@ -1670,7 +2003,7 @@ let outfitPurchases = {oxen:0, food:0, clothing:0, ammo:0, parts:0};
 
 function goToOutfitting(){
   const roster = getCurrentRoster();
-  const members = selected.map(i=>({...roster[i], health:100, alive:true}));
+  const members = selected.map(i=>({...roster[i], health:100, alive:true, sick:false}));
   const leader = members.find(m=>m.id===roster[leaderIdx].id);
   window._pendingParty = {members, leader};
   outfitBudget = STARTING_CASH[leader.mult] || 500;
@@ -1969,6 +2302,13 @@ function renderTrail(){
       hpFill.classList.toggle('low', pct2<35);
     }
     if(hpLabel) hpLabel.textContent = Math.floor(Math.max(0,m.health));
+    const statusEl = document.getElementById('party-status-'+i);
+    if(statusEl && m.alive){
+      const pct2 = Math.max(0,m.health);
+      if(m.sick){ statusEl.textContent = '🤒 Sick'; statusEl.className = 'status-badge sick'; }
+      else if(pct2<35){ statusEl.textContent = '⚠️ Weak'; statusEl.className = 'status-badge weak'; }
+      else { statusEl.textContent = '✓ Healthy'; statusEl.className = 'status-badge ok'; }
+    }
   });
 
   const logEl = document.getElementById('log');
@@ -1981,6 +2321,12 @@ function renderPartyStrip(){
     const imgSrc = m.image || m.pfp;
     const pixelCls = m.image ? '' : 'pixel';
     const pct2 = Math.max(0,m.health);
+    let status = '';
+    if(m.alive){
+      if(m.sick) status = '<div class="status-badge sick">🤒 Sick</div>';
+      else if(pct2<35) status = '<div class="status-badge weak">⚠️ Weak</div>';
+      else status = '<div class="status-badge ok">✓ Healthy</div>';
+    }
     return `<div class="party-card" id="party-card-${i}">
       ${m.id===state.leaderId?'<div class="leader-star">\u2605</div>':''}
       <div class="bubble" id="bubble-${i}"></div>
@@ -1988,6 +2334,7 @@ function renderPartyStrip(){
       <div class="pname">${m.name}</div>
       <div class="mini-hp-track"><div class="mini-hp-fill" id="party-hp-fill-${i}" style="width:${pct2}%"></div></div>
       <div class="mini-hp-label" id="party-hp-label-${i}">${Math.floor(pct2)}</div>
+      ${status.replace('<div class="status-badge', `<div id="party-status-${i}" class="status-badge`)}
     </div>`;
   }).join('');
 }
@@ -2222,6 +2569,14 @@ function travelStretch(){
   applyHealth(ration.healthDelta, null);
   if(pace.fatigue>0) applyHealth(-pace.fatigue, null);
 
+  const sickMembers = state.members.filter(m=>m.alive && m.sick);
+  sickMembers.forEach(m=>{
+    applyHealth(-2*pace.daysPerStretch, null, m.id);
+  });
+  if(sickMembers.length){
+    logMsg(`${sickMembers.map(m=>m.name).join(', ')} ${sickMembers.length>1?'are':'is'} still sick and losing strength — rest a day to give them a chance to recover.`, 'bad');
+  }
+
   const nextIdx = state.passedLandmarks;
   const lm = nextIdx<LANDMARKS.length && LANDMARKS[nextIdx].mile<=state.distance ? LANDMARKS[nextIdx] : null;
   if(lm){ state.passedLandmarks++; triggerLandmark(lm); }
@@ -2231,10 +2586,11 @@ function travelStretch(){
   renderTrail();
 }
 
-function applyHealth(delta, msg){
+function applyHealth(delta, msg, targetId){
   const gritMult = (delta<0 && hasPerk('grit')) ? 0.85 : 1;
   state.members.forEach(m=>{
     if(!m.alive) return;
+    if(targetId && m.id!==targetId) return;
     let d = delta * gritMult;
     if(delta<0){
       const effResist = Math.min(10, m.resist + (state.clothingBonus||0));
@@ -2281,8 +2637,17 @@ function restDay(){
   const consumed = 2 * aliveCount;
   state.food -= consumed;
   if(state.food<0) state.food = 0;
-  state.members.forEach(m=>{ if(m.alive) m.health = Math.min(100, m.health + 10); });
-  logMsg("The party rests for a day, tending wounds and mending gear (+10 health each).", 'good');
+  const resist = partyStat('resist');
+  const cureChance = Math.min(0.85, 0.5+resist*0.04);
+  let curedNames = [];
+  state.members.forEach(m=>{
+    if(!m.alive) return;
+    m.health = Math.min(100, m.health + 10);
+    if(m.sick && Math.random()<cureChance){ m.sick = false; curedNames.push(m.name); }
+  });
+  let msg = "The party rests for a day, tending wounds and mending gear (+10 health each).";
+  if(curedNames.length) msg += ` ${curedNames.join(', ')} recovered from their sickness.`;
+  logMsg(msg, 'good');
   checkEndConditions();
   renderTrail();
 }
@@ -2364,13 +2729,22 @@ function renderTownStore(){
   const foodCost = Math.max(1, Math.round(PRICES.food50*negotiated));
   const ammoCost = Math.max(1, Math.round(PRICES.ammoBox*negotiated));
   const partsCost = Math.max(1, Math.round(PRICES.parts*negotiated));
+  // Sell prices are always half the local buy price (before haggling), so
+  // there's no buy-then-sell loop to farm cash from thin air.
+  const foodSell = Math.max(1, Math.round(PRICES.food50*currentTownMult*0.5));
+  const ammoSell = Math.max(1, Math.round(PRICES.ammoBox*currentTownMult*0.5));
+  const partsSell = Math.max(1, Math.round(PRICES.parts*currentTownMult*0.5));
+  const canSellFood = state.food>=50, canSellAmmo = state.ammo>=20, canSellParts = state.parts>=1;
   document.getElementById('town-store').innerHTML = `
-    <div class="item-name">Food (50 lb) <div class="item-price">${foodCost} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('food',50,${foodCost})">Buy</button><div></div>
-    <div class="item-name">Ammo Box (20) <div class="item-price">${ammoCost} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('ammo',20,${ammoCost})">Buy</button><div></div>
-    <div class="item-name">Spare Part <div class="item-price">${partsCost} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('parts',1,${partsCost})">Buy</button><div></div>
+    <div class="item-name">Food (50 lb) <div class="item-price">Buy ${foodCost} \u039e &nbsp;/&nbsp; Sell ${foodSell} \u039e</div></div>
+    <button class="btn small" onclick="townBuy('food',50,${foodCost})">Buy</button>
+    <button class="btn small" ${canSellFood?'':'disabled'} onclick="townSell('food',50,${foodSell})">Sell</button><div></div>
+    <div class="item-name">Ammo Box (20) <div class="item-price">Buy ${ammoCost} \u039e &nbsp;/&nbsp; Sell ${ammoSell} \u039e</div></div>
+    <button class="btn small" onclick="townBuy('ammo',20,${ammoCost})">Buy</button>
+    <button class="btn small" ${canSellAmmo?'':'disabled'} onclick="townSell('ammo',20,${ammoSell})">Sell</button><div></div>
+    <div class="item-name">Spare Part <div class="item-price">Buy ${partsCost} \u039e &nbsp;/&nbsp; Sell ${partsSell} \u039e</div></div>
+    <button class="btn small" onclick="townBuy('parts',1,${partsCost})">Buy</button>
+    <button class="btn small" ${canSellParts?'':'disabled'} onclick="townSell('parts',1,${partsSell})">Sell</button><div></div>
   `;
   document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
 }
@@ -2380,7 +2754,17 @@ function townBuy(key, amt, cost){
   if(key==='food') state.food += amt;
   if(key==='ammo') state.ammo += amt;
   if(key==='parts') state.parts += amt;
-  document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
+  renderTownStore();
+}
+function townSell(key, amt, value){
+  if(key==='food' && state.food<amt) return;
+  if(key==='ammo' && state.ammo<amt) return;
+  if(key==='parts' && state.parts<amt) return;
+  if(key==='food') state.food -= amt;
+  if(key==='ammo') state.ammo -= amt;
+  if(key==='parts') state.parts -= amt;
+  state.cash += value;
+  renderTownStore();
 }
 function leaveTown(){
   document.getElementById('modal-town').classList.add('hide');
@@ -2616,13 +3000,16 @@ function endHunt(){
    Fishing skill widens the reel zone (already tuned) and nudges
    weight upward, since a sharper angler lands the bigger ones.
    ============================================================ */
-let fishRound=0, fishCatches=0, fishPos=0, fishDir=1, fishAnim=null, fishZoneStart=0, fishZoneWidth=0, fishCatchLog=[];
+let fishRound=0, fishCatches=0, fishPos=0, fishDir=1, fishAnim=null, fishZoneStart=0, fishZoneWidth=0, fishCatchLog=[], fishTarget=null;
+// baseWidth sets how hard each species' catch zone is BEFORE Fishing skill
+// is applied — bigger, rarer fish get a smaller zone. Skill still helps
+// (added on top), but a Salmon is always meaningfully harder than a Trout.
 const FISH_SPECIES = [
-  {name:"Trout",   minLb:1,   maxLb:3},
-  {name:"Bass",    minLb:1.5, maxLb:4},
-  {name:"Catfish", minLb:2,   maxLb:6},
-  {name:"Pike",    minLb:3,   maxLb:7},
-  {name:"Salmon",  minLb:4,   maxLb:9},
+  {name:"Trout",   minLb:1,   maxLb:3, baseWidth:28},
+  {name:"Bass",    minLb:1.5, maxLb:4, baseWidth:25},
+  {name:"Catfish", minLb:2,   maxLb:6, baseWidth:21},
+  {name:"Pike",    minLb:3,   maxLb:7, baseWidth:17},
+  {name:"Salmon",  minLb:4,   maxLb:9, baseWidth:13},
 ];
 function openFishing(lm){
   document.getElementById('fish-icon').src = SPRITE_URLS.FISH;
@@ -2630,14 +3017,17 @@ function openFishing(lm){
   document.getElementById('modal-fish').classList.remove('hide');
   fishRound=0; fishCatches=0; fishCatchLog=[]; document.getElementById('fish-catches').textContent='0';
   document.getElementById('fish-catch-reveal').classList.add('hide');
-  const fishingSkill = partyStat('fishing');
-  fishZoneWidth = 18 + fishingSkill*2;
   nextFishRound();
 }
 function nextFishRound(){
   fishRound++;
   document.getElementById('fish-round-label').textContent = `Cast ${fishRound} / 5`;
   if(fishRound>5){ endFishing(); return; }
+  const fishingSkill = partyStat('fishing');
+  fishTarget = FISH_SPECIES[Math.floor(Math.random()*FISH_SPECIES.length)];
+  fishZoneWidth = fishTarget.baseWidth + fishingSkill*1.5;
+  const hint = fishTarget.baseWidth<=17 ? "Something big is testing the line…" : fishTarget.baseWidth<=21 ? "Feels like a decent pull." : "Feels easy so far.";
+  document.getElementById('fish-round-label').textContent = `Cast ${fishRound} / 5 — ${hint}`;
   fishZoneStart = 10 + Math.random()*(80-fishZoneWidth/1.2);
   document.getElementById('fish-zone').style.left = fishZoneStart+'%';
   document.getElementById('fish-zone').style.width = fishZoneWidth+'%';
@@ -2659,7 +3049,7 @@ function reelFish(){
   if(inZone){
     fishCatches++;
     const fishingSkill = partyStat('fishing');
-    const species = FISH_SPECIES[Math.floor(Math.random()*FISH_SPECIES.length)];
+    const species = fishTarget;
     let weight = species.minLb + Math.random()*(species.maxLb-species.minLb);
     weight *= (1 + fishingSkill*0.015);
     weight = Math.round(weight*10)/10;
@@ -2699,7 +3089,7 @@ function endFishing(){
    (Rafting minigame), fish the banks (Fishing minigame, no
    crossing risk), or pay a guide for a guaranteed safe crossing.
    ============================================================ */
-const RIVER_GUIDE_COST = 25;
+const RIVER_GUIDE_COST = 10;
 function guideCost(){ return hasPerk('guide') ? Math.round(RIVER_GUIDE_COST*0.75) : RIVER_GUIDE_COST; }
 let currentRiverStats = null;
 function generateRiverStats(lm){
@@ -2723,9 +3113,11 @@ function openRiverChoice(lm){
     <div class="stat-box"><div class="label">Width</div><div class="value">${currentRiverStats.widthYd} yd</div></div>
     <div class="stat-box"><div class="label">Current</div><div class="value">${currentRiverStats.currentLabel}</div></div>
   `;
+  const cost = guideCost();
+  const canAffordGuide = state.cash>=cost;
   document.getElementById('river-options').innerHTML = `
     <div class="fork-card" onclick="chooseRiverFord()"><h4>Ford the River</h4><div class="muted">Raft across and dodge the current — Rafting skill sets how much of a beating the raft can take.</div></div>
-    <div class="fork-card" onclick="chooseRiverGuide()"><h4>Pay a Guide (${guideCost()} \u039e)</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
+    <div class="fork-card" style="${canAffordGuide?'':'opacity:.45; pointer-events:none;'}" onclick="chooseRiverGuide()"><h4>Pay a Guide (${cost} \u039e)${canAffordGuide?'':' — not enough cash'}</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
   `;
   document.getElementById('modal-river').classList.remove('hide');
 }
@@ -2734,14 +3126,11 @@ function chooseRiverFord(){
   openRafting(pendingLandmark);
 }
 function chooseRiverGuide(){
-  document.getElementById('modal-river').classList.add('hide');
   const cost = guideCost();
-  if(state.cash>=cost){
-    state.cash -= cost;
-    logMsg(`${pendingLandmark.name}: paid a guide for safe passage (-${cost} \u039e).`, 'good');
-  } else {
-    logMsg(`${pendingLandmark.name}: couldn't afford a guide — forded alone and got lucky, no damage taken.`, 'good');
-  }
+  if(state.cash<cost) return;
+  document.getElementById('modal-river').classList.add('hide');
+  state.cash -= cost;
+  logMsg(`${pendingLandmark.name}: paid a guide for safe passage (-${cost} \u039e).`, 'good');
   state.sceneMode='trail';
   renderTrail();
 }
@@ -2847,12 +3236,25 @@ function endRafting(){
   document.getElementById('modal-raft').classList.add('hide');
   state.sceneMode = 'trail';
   const damageTaken = raftMaxHealth - raftHealth;
+  const damagePct = Math.min(1, damageTaken/raftMaxHealth);
   const capsized = raftHealth<=0;
-  const dmg = capsized ? 14 : Math.round((damageTaken/raftMaxHealth)*8);
+  const dmg = capsized ? 14 : Math.round(damagePct*8);
   if(dmg>0){
+    // Supplies wash away with the current, scaled to how rough the crossing was.
+    const lostFood = Math.round((capsized ? 25+Math.random()*20 : damagePct*15));
+    const lostAmmo = Math.round((capsized ? 8+Math.random()*8 : damagePct*6));
+    const lostParts = (capsized && state.parts>0 && Math.random()<0.5) ? 1 : 0;
+    state.food = Math.max(0, state.food-lostFood);
+    state.ammo = Math.max(0, state.ammo-lostAmmo);
+    state.parts = Math.max(0, state.parts-lostParts);
+    const lossBits = [];
+    if(lostFood>0) lossBits.push(`${lostFood}lb food`);
+    if(lostAmmo>0) lossBits.push(`${lostAmmo} ammo`);
+    if(lostParts>0) lossBits.push(`${lostParts} spare part`);
+    const lossNote = lossBits.length ? ` Lost ${lossBits.join(', ')} in the current.` : '';
     applyHealth(-dmg, capsized
-      ? `${pendingLandmark.name}: the raft capsized in the current!`
-      : `${pendingLandmark.name}: forded the river, a little banged up (raft integrity ${Math.max(0,Math.round(raftHealth/raftMaxHealth*100))}%).`);
+      ? `${pendingLandmark.name}: the raft capsized in the current!${lossNote}`
+      : `${pendingLandmark.name}: forded the river, a little banged up (raft integrity ${Math.max(0,Math.round(raftHealth/raftMaxHealth*100))}%).${lossNote}`);
   } else {
     logMsg(`${pendingLandmark.name}: forded the river clean, no damage taken.`, 'good');
   }
@@ -2941,40 +3343,54 @@ function resolveRepair(method, tinkering){
 
 /* ---- Medicine: sickness in camp ---- */
 function triggerSickness(){
+  const alive = state.members.filter(m=>m.alive);
+  if(alive.length===0) return;
+  const patient = alive[Math.floor(Math.random()*alive.length)];
   const medicine = partyStat('medicine'), resist = partyStat('resist');
   openDecision({
     title: "Sickness in the Camp",
     icon: SPRITE_URLS.MEDKIT,
-    desc: "Someone's come down with a fever. Decide how to treat it.",
+    desc: `${patient.name} has come down with a fever. Decide how to treat it.`,
     options: [
       {label: "Treat with Medicine (+1 day)",
        detail: `Best odds of a clean recovery, but proper care takes time. Medicine ${medicine.toFixed(1)}.`,
-       apply: ()=>resolveSickness('treat', medicine, resist)},
+       apply: ()=>resolveSickness(patient, 'treat', medicine, resist)},
       {label: "Rest and Wait It Out",
        detail: `No day lost, no treatment attempt — leaves it to chance. Resist ${resist.toFixed(1)}.`,
-       apply: ()=>resolveSickness('rest', medicine, resist)},
+       apply: ()=>resolveSickness(patient, 'rest', medicine, resist)},
       {label: "Push Through It",
-       detail: "Keep traveling and hope it passes — risky, but doesn't slow anyone down.",
-       apply: ()=>resolveSickness('push', medicine, resist)},
+       detail: "Keep traveling and hope it passes — risky, and likely to leave them sick for a while.",
+       apply: ()=>resolveSickness(patient, 'push', medicine, resist)},
     ]
   });
 }
-function resolveSickness(method, medicine, resist){
+function resolveSickness(patient, method, medicine, resist){
+  const stillAlive = state.members.find(m=>m.id===patient.id && m.alive);
   if(method==='treat'){
     state.day += 1;
     const successChance = Math.min(0.92, 0.45+medicine*0.06);
     if(Math.random()<successChance){
-      logMsg(`Sickness in the camp: treated in time, no lasting harm (Medicine ${medicine.toFixed(1)}, +1 day).`, 'good');
+      if(stillAlive) stillAlive.sick = false;
+      logMsg(`${patient.name} was treated in time, no lasting harm (Medicine ${medicine.toFixed(1)}, +1 day).`, 'good');
     } else {
+      if(stillAlive) stillAlive.sick = true;
       const dmg = Math.max(2, Math.round(6-medicine*0.3-resist*0.2));
-      applyHealth(-dmg, `Sickness in the camp: treatment helped some, but it still took a toll (+1 day).`);
+      applyHealth(-dmg, `${patient.name}: treatment helped some, but they're still sick (+1 day).`, patient.id);
     }
   } else if(method==='rest'){
-    const dmg = Math.max(1, Math.round(5-resist*0.4));
-    applyHealth(-dmg, `Sickness in the camp: resting it out took some strength (Resist ${resist.toFixed(1)}).`);
+    const successChance = Math.min(0.7, 0.3+resist*0.05);
+    if(Math.random()<successChance){
+      if(stillAlive) stillAlive.sick = false;
+      logMsg(`${patient.name} rested it off — recovered without treatment (Resist ${resist.toFixed(1)}).`, 'good');
+    } else {
+      if(stillAlive) stillAlive.sick = true;
+      const dmg = Math.max(1, Math.round(5-resist*0.4));
+      applyHealth(-dmg, `${patient.name}: still sick — resting alone wasn't enough (Resist ${resist.toFixed(1)}).`, patient.id);
+    }
   } else {
+    if(stillAlive) stillAlive.sick = true;
     const dmg = Math.max(3, Math.round(9-resist*0.3));
-    applyHealth(-dmg, `Sickness in the camp: pushing through took a real toll (Resist ${resist.toFixed(1)}).`);
+    applyHealth(-dmg, `${patient.name}: pushing through took a real toll, and they're still sick (Resist ${resist.toFixed(1)}).`, patient.id);
   }
   checkEndConditions();
   renderTrail();
@@ -2983,11 +3399,14 @@ function resolveSickness(method, medicine, resist){
 /* ============================================================
    FORAGING MINIGAME — catch falling fruit in a basket that slides
    with the mouse/finger. Scavenging widens the basket AND boosts
-   the value of every catch; thorns cost a little food, not a fail
-   state. Only reachable via a fertile zone (see forageAttempt()).
+   the value of every catch. A thorn is a hard fail: it hurts the
+   party and ends the round immediately, not just a scoring ding.
+   Carry capacity mirrors Hunting's (Scavenging-scaled), but with
+   a lower base and slope so foraging nets less than a good hunt.
+   Only reachable via a fertile zone (see forageAttempt()).
    ============================================================ */
 let forageCtx, forageActive=false, forageItems=[], forageCatches=0, forageThorns=0;
-let forageTimeLeft=10, forageTimerId=null, forageSpawnId=null, forageAnimId=null;
+let forageTimeLeft=16, forageTimerId=null, forageSpawnId=null, forageAnimId=null;
 let forageBucketX=200, forageBucketW=60, forageZone=null;
 const FORAGE_KINDS = {apple:{rows:APPLE_ROWS,pal:APPLE_PAL}, berry:{rows:BERRY_ROWS,pal:BERRY_PAL}, thorn:{rows:THORN_ROWS,pal:THORN_PAL}};
 
@@ -2996,10 +3415,11 @@ function openForageGame(zone){
   document.getElementById('forage-icon').src = SPRITE_URLS.BASKET;
   document.getElementById('forage-title').textContent = zone.name + " — Foraging";
   document.getElementById('modal-forage').classList.remove('hide');
-  forageCatches=0; forageThorns=0; forageItems=[]; forageTimeLeft=10;
+  document.getElementById('forage-play-area').classList.remove('hide');
+  document.getElementById('forage-results').classList.add('hide');
+  forageCatches=0; forageThorns=0; forageItems=[]; forageTimeLeft=16;
   document.getElementById('forage-catches').textContent='0';
-  document.getElementById('forage-thorns').textContent='0';
-  document.getElementById('forage-timer').textContent='10';
+  document.getElementById('forage-timer').textContent='16';
   document.getElementById('forage-start-btn').textContent='Start Foraging';
   document.getElementById('forage-start-btn').disabled=false;
   const scavenging = partyStat('scavenging');
@@ -3025,14 +3445,14 @@ function startForage(){
   forageSpawnId = setInterval(spawnForageItem, 550);
   forageTimerId = setInterval(function(){
     forageTimeLeft--; document.getElementById('forage-timer').textContent = forageTimeLeft;
-    if(forageTimeLeft<=0) endForage();
+    if(forageTimeLeft<=0) endForage(false);
   }, 1000);
   forageLoop();
 }
 function spawnForageItem(){
   const canvas = document.getElementById('forageCanvas');
   const roll = Math.random();
-  const kind = roll<0.15 ? 'thorn' : (roll<0.55 ? 'berry' : 'apple');
+  const kind = roll<0.12 ? 'thorn' : (roll<0.55 ? 'berry' : 'apple');
   forageItems.push({x:20+Math.random()*(canvas.width-40), y:-10, kind, speed:1.4+Math.random()*1.2});
 }
 function forageLoop(){
@@ -3043,9 +3463,14 @@ function forageLoop(){
   for(let i=forageItems.length-1;i>=0;i--){
     const it = forageItems[i];
     if(it.y>=bucketY-8 && it.y<=bucketY+10 && Math.abs(it.x-forageBucketX)<forageBucketW/2){
+      if(it.kind==='thorn'){
+        forageThorns++;
+        drawForage();
+        endForage(true);
+        return;
+      }
       forageItems.splice(i,1);
-      if(it.kind==='thorn'){ forageThorns++; document.getElementById('forage-thorns').textContent=forageThorns; }
-      else { forageCatches++; document.getElementById('forage-catches').textContent=forageCatches; }
+      forageCatches++; document.getElementById('forage-catches').textContent=forageCatches;
       continue;
     }
     if(it.y>canvas.height+10) forageItems.splice(i,1);
@@ -3066,18 +3491,35 @@ function drawForage(){
   forageCtx.fillStyle = '#5b3a29';
   forageCtx.fillRect(forageBucketX-forageBucketW/2, by, forageBucketW, 3);
 }
-function endForage(){
+function endForage(thornHit){
   forageActive=false; clearInterval(forageSpawnId); clearInterval(forageTimerId);
   cancelAnimationFrame(forageAnimId);
-  document.getElementById('modal-forage').classList.add('hide');
-  state.sceneMode='trail';
   const scavenging = partyStat('scavenging');
+  const carryCapacity = 14 + scavenging*4; // lower base + slope than Hunting's, so foraging nets less overall
   const valueMult = 1 + scavenging*0.05;
-  const gain = Math.max(0, Math.round(forageCatches*3.5*valueMult - forageThorns*5));
+  const rawGain = forageCatches*3.5*valueMult;
+  const carried = Math.min(rawGain, carryCapacity);
+  const wasted = rawGain - carried;
+  const gain = Math.max(0, Math.round(carried));
   state.food += gain;
   state.foragedZones.add(forageZone.name);
-  logMsg(`${forageZone.name}: foraged ${forageCatches} catches, ${forageThorns} thorns (+${gain} food, Scavenging ${scavenging.toFixed(1)}).`, gain>0?'good':'bad');
+  let resultText;
+  if(thornHit){
+    applyHealth(-4, null);
+    resultText = `Ouch — a thorn bush! Foraging cut short.<br>Caught ${forageCatches} before that, +${gain} food${wasted>0?` (left ${Math.round(wasted)}lb behind, over the carry limit)`:''}. Took a bit of damage from the thorns.`;
+  } else {
+    resultText = `Foraging complete — ${forageCatches} caught, +${gain} food${wasted>0?` (left ${Math.round(wasted)}lb behind, over the carry limit)`:''}.`;
+  }
+  logMsg(`${forageZone.name}: ${forageCatches} caught${thornHit?', ended early by a thorn':''} (+${gain} food, Scavenging ${scavenging.toFixed(1)}).`, thornHit ? 'bad' : (gain>0?'good':'bad'));
   if(forageCatches>0) completeQuest('quest_minigame_done', 20);
+  document.getElementById('forage-play-area').classList.add('hide');
+  document.getElementById('forage-results').classList.remove('hide');
+  document.getElementById('forage-results-text').innerHTML = resultText;
+}
+function closeForageModal(){
+  document.getElementById('modal-forage').classList.add('hide');
+  state.sceneMode='trail';
+  checkEndConditions();
   renderTrail();
 }
 
@@ -3085,6 +3527,7 @@ function endForage(){
    END CONDITIONS & SCORING
    ============================================================ */
 function checkEndConditions(){
+  if(state.over) return;
   const anyAlive = state.members.some(m=>m.alive);
   if(!anyAlive){ state.over=true; endRun(false); return; }
   const leaderMember = state.members.find(m=>m.id===state.leaderId);
@@ -3097,6 +3540,8 @@ function checkEndConditions(){
   if(state.distance>=TRAIL_GOAL){ state.over=true; endRun(true); }
 }
 function endRun(success){
+  if(state.endRunCalled) return;
+  state.endRunCalled = true;
   const survivors = state.members.filter(m=>m.alive);
   const healthSum = survivors.reduce((s,m)=>s+m.health,0);
   const stackMult = 1 + Math.min(state.stackBonus,3)*0.05;
@@ -3192,8 +3637,10 @@ async function autoSaveAndRender(){
   await renderLeaderboard();
 }
 
-async function renderLeaderboard(){
-  const t = document.getElementById('leaderboard-table');
+async function renderLeaderboard(targetId){
+  targetId = targetId || 'leaderboard-table';
+  const t = document.getElementById(targetId);
+  if(!t) return;
   const client = getSupabase();
   if(client){
     try{
@@ -3231,7 +3678,10 @@ function resetGame(){
   if(currentUser){ goToHome(); } else { show('screen-title'); }
 }
 
-show('screen-title');
+(async()=>{
+  const cameBackViaEmailLink = await checkEmailAuthSession();
+  if(!cameBackViaEmailLink) show('screen-title');
+})();
 </script>
 </body>
 </html>
