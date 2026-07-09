@@ -206,6 +206,9 @@
       <p class="muted">Purely cosmetic — unlock a piece once, then swap freely between anything you own, any time.</p>
       <div id="wagon-customize"></div>
 
+      <h3 style="margin-top:18px;">Bestiary</h3>
+      <div id="bestiary-list"></div>
+
       <h3 style="margin-top:18px;">Daily Trail Tasks</h3>
       <p class="muted" id="quest-reset-note">Resets once per day. Complete these during a run to earn bonus Trail Points.</p>
       <div id="quest-list"></div>
@@ -1116,7 +1119,8 @@ async function connectWallet(){
 const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
   wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[],
   lifetime_miles:0, lifetime_runs:0, lifetime_wins:0, lifetime_deaths:0,
-  lifetime_animals_hunted:0, lifetime_fish_caught:0, lifetime_rivers_crossed:0, lifetime_legendary_encounters:0 };
+  lifetime_animals_hunted:0, lifetime_fish_caught:0, lifetime_rivers_crossed:0, lifetime_legendary_encounters:0,
+  bestiary_fish:{}, bestiary_animals:{} };
 let playerProfile = {...DEFAULT_PROFILE};
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
@@ -1166,6 +1170,7 @@ async function saveProfile(){
       lifetime_wins: playerProfile.lifetime_wins, lifetime_deaths: playerProfile.lifetime_deaths,
       lifetime_animals_hunted: playerProfile.lifetime_animals_hunted, lifetime_fish_caught: playerProfile.lifetime_fish_caught,
       lifetime_rivers_crossed: playerProfile.lifetime_rivers_crossed, lifetime_legendary_encounters: playerProfile.lifetime_legendary_encounters,
+      bestiary_fish: playerProfile.bestiary_fish, bestiary_animals: playerProfile.bestiary_animals,
     }).eq('user_key', currentUser.email);
   }catch(e){ console.warn('Could not save profile to Supabase', e); }
 }
@@ -1185,6 +1190,56 @@ async function goToHome(){
   await loadProfile();
   renderHome();
 }
+/* ============================================================
+   BESTIARY / CODEX — first-catch unlocks + personal-best weight
+   per species, across hunting and fishing. Naturally uncapped in
+   spirit even though the species list is fixed: it's the personal
+   bests that keep moving.
+   ============================================================ */
+const BESTIARY_FISH_SPECIES = ['Trout','Bass','Catfish','Pike','Salmon'];
+const BESTIARY_ANIMAL_SPECIES = ['deer','rabbit','bison','turkey'];
+const BESTIARY_ANIMAL_LABELS = {deer:'Deer', rabbit:'Rabbit', bison:'Bison', turkey:'Turkey'};
+function recordBestiaryCatch(category, speciesKey, weight){
+  if(!playerProfile) return;
+  const book = playerProfile[category] ? {...playerProfile[category]} : {};
+  const entry = book[speciesKey] || {count:0, bestWeight:0};
+  entry.count += 1;
+  entry.bestWeight = Math.max(entry.bestWeight, weight);
+  book[speciesKey] = entry;
+  playerProfile[category] = book;
+}
+function renderBestiary(){
+  const el = document.getElementById('bestiary-list');
+  if(!el || !playerProfile) return;
+  const fishBook = playerProfile.bestiary_fish || {};
+  const animalBook = playerProfile.bestiary_animals || {};
+  const fishCards = BESTIARY_FISH_SPECIES.map(name=>{
+    const e = fishBook[name];
+    const found = !!e;
+    return `<div class="stat-box" style="${found?'':'opacity:.4;'}">
+      <div class="label">${found ? '\ud83d\udc1f' : '?'} ${found ? name : '???'}</div>
+      <div class="value" style="font-size:15px;">${found ? e.bestWeight.toFixed(1)+'lb' : '—'}</div>
+      <div class="muted" style="font-size:9.5px;">${found ? `${e.count} caught` : 'Not yet caught'}</div>
+    </div>`;
+  }).join('');
+  const animalCards = BESTIARY_ANIMAL_SPECIES.map(key=>{
+    const e = animalBook[key];
+    const found = !!e;
+    const label = BESTIARY_ANIMAL_LABELS[key];
+    return `<div class="stat-box" style="${found?'':'opacity:.4;'}">
+      <div class="label">${found ? '\ud83c\udff9' : '?'} ${found ? label : '???'}</div>
+      <div class="value" style="font-size:15px;">${found ? e.bestWeight.toFixed(1)+'lb' : '—'}</div>
+      <div class="muted" style="font-size:9.5px;">${found ? `${e.count} taken` : 'Not yet hunted'}</div>
+    </div>`;
+  }).join('');
+  const totalSpecies = BESTIARY_FISH_SPECIES.length + BESTIARY_ANIMAL_SPECIES.length;
+  const foundSpecies = Object.keys(fishBook).length + Object.keys(animalBook).length;
+  el.innerHTML = `
+    <p class="muted" style="margin-bottom:8px;">${foundSpecies}/${totalSpecies} species discovered. Personal-best weight shown for each.</p>
+    <div class="stat-grid">${fishCards}${animalCards}</div>
+  `;
+}
+
 const RANK_TIERS = [
   {min:0,     label:'Greenhorn'},
   {min:2000,  label:'Trailhand'},
@@ -1231,6 +1286,7 @@ function renderHome(){
   drawWagonPreview();
   renderUpgrades();
   renderWagonCustomize();
+  renderBestiary();
   renderQuests();
 }
 
@@ -2212,7 +2268,7 @@ function resolveHazard(lm, baseDanger, slow){
    a good hunt is about which animals you connect with, not just
    how many clicks land.
    ============================================================ */
-let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntKillValue=0, huntTimeLeft=20, huntTimerId=null, huntSpawnId=null, huntRAF=null;
+let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntKillValue=0, huntKillLog=[], huntTimeLeft=20, huntTimerId=null, huntSpawnId=null, huntRAF=null;
 const ANIMALS = {
   deer:   {rows:DEER_ROWS,   pal:DEER_PAL,   r:20, hp:1, value:14, speedMin:3.2, speedMax:4.4, weight:25},
   rabbit: {rows:RABBIT_ROWS, pal:RABBIT_PAL, r:14, hp:1, value:8,  speedMin:2.4, speedMax:3.4, weight:35},
@@ -2230,7 +2286,7 @@ function openHunting(lm){
   document.getElementById('hunt-icon').src = SPRITE_URLS[lm.icon] || SPRITE_URLS.PAW;
   document.getElementById('hunt-title').textContent = lm.name + " — Hunting";
   document.getElementById('modal-hunt').classList.remove('hide');
-  huntHits=0; huntKillValue=0; huntTimeLeft=20; huntTargets=[];
+  huntHits=0; huntKillValue=0; huntKillLog=[]; huntTimeLeft=20; huntTargets=[];
   document.getElementById('hunt-hits').textContent = '0';
   document.getElementById('hunt-ammo').textContent = state.ammo;
   document.getElementById('hunt-timer').textContent = '20';
@@ -2326,6 +2382,8 @@ function handleHuntClick(e){
       if(t.hp<=0){
         huntTargets.splice(i,1);
         huntHits++; huntKillValue += t.value;
+        const weight = Math.round(t.value*(0.7+Math.random()*0.6)*10)/10;
+        huntKillLog.push({kind:t.kind, weight});
         document.getElementById('hunt-hits').textContent = huntHits;
       }
       break;
@@ -2348,7 +2406,10 @@ function endHunt(){
   logMsg(msg, wasted>0 ? 'bad' : 'good');
   if(huntHits>0){
     completeQuest('quest_minigame_done', 20);
-    if(playerProfile) playerProfile.lifetime_animals_hunted = (playerProfile.lifetime_animals_hunted||0) + huntHits;
+    if(playerProfile){
+      playerProfile.lifetime_animals_hunted = (playerProfile.lifetime_animals_hunted||0) + huntHits;
+      huntKillLog.forEach(k=>recordBestiaryCatch('bestiary_animals', k.kind, k.weight));
+    }
   }
   renderTrail();
 }
@@ -2428,7 +2489,10 @@ function endFishing(){
   if(RIVER_LANDMARKS.includes(pendingLandmark)) state.fishedRivers.add(pendingLandmark.name);
   if(fishCatches>0){
     completeQuest('quest_minigame_done', 20);
-    if(playerProfile) playerProfile.lifetime_fish_caught = (playerProfile.lifetime_fish_caught||0) + fishCatches;
+    if(playerProfile){
+      playerProfile.lifetime_fish_caught = (playerProfile.lifetime_fish_caught||0) + fishCatches;
+      fishCatchLog.forEach(f=>recordBestiaryCatch('bestiary_fish', f.name, f.weight));
+    }
   }
   renderTrail();
 }
