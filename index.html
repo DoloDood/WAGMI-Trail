@@ -196,10 +196,14 @@
 
       <div id="trail-record" style="margin:12px 0; padding:10px 12px; background:rgba(43,35,24,.05); border-radius:8px;"></div>
 
+      <h3 style="margin-top:8px;">Choose Your Route</h3>
+      <p class="muted">Your active route applies to your next run. Unlock new ones with Trail Points.</p>
+      <div id="route-list" class="fork-options"></div>
+
       <canvas id="wagonPreview" width="360" height="120" style="display:block; margin:10px auto; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:linear-gradient(180deg,#bfe3e0,#eaf6e6);"></canvas>
 
-      <h3 style="margin-top:18px;">Wagon Upgrades</h3>
-      <p class="muted">Spend Trail Points earned from finished runs. Upgrades apply to every future run automatically.</p>
+      <h3 style="margin-top:18px;">Wagon Perks <span class="muted" id="perk-progress" style="font-size:11px; font-weight:400;"></span></h3>
+      <p class="muted">Spend Trail Points earned from finished runs. Perks apply to every future run automatically — some require an earlier perk in the same line first.</p>
       <div id="upgrade-list" class="store-grid"></div>
 
       <h3 style="margin-top:18px;">Customize Your Wagon</h3>
@@ -253,7 +257,7 @@
   <div id="screen-trail" class="hide">
     <div class="panel">
       <div class="row between">
-        <div><span class="eyebrow">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
+        <div><span class="eyebrow" id="trail-route-name">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
         <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
       </div>
       <div class="party-strip" id="party-strip"></div>
@@ -755,7 +759,7 @@ const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
 /* ============================================================
    GAME DATA
    ============================================================ */
-const TRAIL_GOAL = 2000;
+let TRAIL_GOAL = 2000;
 
 const FREE_ROSTER = [
   {id:"F1", name:"Ragged Farmhand", cls:"Laborer",      rarity:"Common", mult:1, biome:"Prairie",   hunting:2, scavenging:6, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:3, resist:3},
@@ -771,39 +775,167 @@ const FREE_ROSTER = [
 ];
 FREE_ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i); });
 
-const LANDMARKS = [
-  {mile:150,  name:"Mempool Marsh",         type:"river",     icon:"FISH"},
-  {mile:300,  name:"Gas Fee Gulch",         type:"hazard",    icon:"FUEL"},
-  {mile:420,  name:"The Diamond Hands Split", type:"fork",    icon:"SIGNPOST"},
-  {mile:600,  name:"Whale Watch Point",     type:"town",      icon:"STORE"},
-  {mile:750,  name:"Rug Pull Ravine",       type:"hazard",    icon:"RAVINE"},
-  {mile:900,  name:"Consensus Canyon",      type:"river",     icon:"FISH"},
-  {mile:1050, name:"Wagmi Wells",           type:"town",      icon:"STORE"},
-  {mile:1200, name:"Gwei Gorge",            type:"hazard",    icon:"GORGE"},
-  {mile:1350, name:"Ape Coin Acres",        type:"plains",    icon:"PAW"},
-  {mile:1500, name:"Cold Storage Crossing", type:"fork",      icon:"SIGNPOST"},
-  {mile:1650, name:"Staking Stream",        type:"river",     icon:"FISH"},
-  {mile:1800, name:"Airdrop Alley",         type:"town",      icon:"STORE"},
-  {mile:1920, name:"Genesis Block Gulch",   type:"legendary", icon:"LEGENDCHEST"},
+/* ============================================================
+   TRAIL ROUTES — three distinct named journeys, not just a
+   longer/shorter version of the same trail. Route 1 is the
+   original trail (free, default). Routes 2 and 3 have their own
+   landmark mix, length, and fertile-zone spread, unlocked with
+   Trail Points from the home screen. TRAIL_GOAL/LANDMARKS/
+   FERTILE_ZONES/RIVER_LANDMARKS are all `let`s reassigned by
+   applyRoute() so every existing function that reads them (there
+   are dozens, scattered across scoring, the trailmap, hazard
+   scaling, river stats...) picks up the active route automatically
+   without needing to be touched individually.
+   ============================================================ */
+const TRAIL_ROUTES = [
+  {
+    key:'green_acres', label:'The Green Acres Trail', cost:0,
+    desc:'The original run. 2,000 miles, a balanced mix of rivers, towns, and hazards.',
+    goalMiles:2000,
+    landmarks:[
+      {mile:150,  name:"Mempool Marsh",         type:"river",     icon:"FISH"},
+      {mile:300,  name:"Gas Fee Gulch",         type:"hazard",    icon:"FUEL"},
+      {mile:420,  name:"The Diamond Hands Split", type:"fork",    icon:"SIGNPOST"},
+      {mile:600,  name:"Whale Watch Point",     type:"town",      icon:"STORE"},
+      {mile:750,  name:"Rug Pull Ravine",       type:"hazard",    icon:"RAVINE"},
+      {mile:900,  name:"Consensus Canyon",      type:"river",     icon:"FISH"},
+      {mile:1050, name:"Wagmi Wells",           type:"town",      icon:"STORE"},
+      {mile:1200, name:"Gwei Gorge",            type:"hazard",    icon:"GORGE"},
+      {mile:1350, name:"Ape Coin Acres",        type:"plains",    icon:"PAW"},
+      {mile:1500, name:"Cold Storage Crossing", type:"fork",      icon:"SIGNPOST"},
+      {mile:1650, name:"Staking Stream",        type:"river",     icon:"FISH"},
+      {mile:1800, name:"Airdrop Alley",         type:"town",      icon:"STORE"},
+      {mile:1920, name:"Genesis Block Gulch",   type:"legendary", icon:"LEGENDCHEST"},
+    ],
+    fertileZones:[
+      {name:"Sweetgrass Basin",   start:60,   end:100},
+      {name:"Bramble Flats",      start:230,  end:270},
+      {name:"Persimmon Hollow",   start:480,  end:520},
+      {name:"Wild Orchard Bend",  start:660,  end:700},
+      {name:"Berry Thicket",      start:820,  end:860},
+      {name:"Sourgrass Meadow",   start:970,  end:1010},
+      {name:"Fruiting Hollow",    start:1120, end:1160},
+      {name:"Bramblewood Pass",   start:1270, end:1310},
+      {name:"Thistle Orchard",    start:1420, end:1460},
+      {name:"Windfall Grove",     start:1560, end:1600},
+      {name:"Late Harvest Flats", start:1720, end:1760},
+      {name:"Golden Bramble",     start:1860, end:1900},
+    ],
+  },
+  {
+    key:'northern_cutoff', label:'The Northern Cutoff', cost:300,
+    desc:'Shorter and meaner. 1,500 miles, only one town, and hazards at almost every turn.',
+    goalMiles:1500,
+    landmarks:[
+      {mile:150,  name:"Frostbite Ford",       type:"hazard",    icon:"FUEL"},
+      {mile:280,  name:"Wolfpack Divide",      type:"fork",      icon:"SIGNPOST"},
+      {mile:420,  name:"Avalanche Alley",      type:"hazard",    icon:"GORGE"},
+      {mile:580,  name:"Ironclad Creek",       type:"river",     icon:"FISH"},
+      {mile:720,  name:"Blackrock Pass",       type:"hazard",    icon:"RAVINE"},
+      {mile:860,  name:"Last Chance Post",     type:"town",      icon:"STORE"},
+      {mile:1000, name:"Widowmaker Ridge",     type:"hazard",    icon:"FUEL"},
+      {mile:1150, name:"Timberwolf Flats",     type:"plains",    icon:"PAW"},
+      {mile:1300, name:"Hollow Fork",          type:"fork",      icon:"SIGNPOST"},
+      {mile:1440, name:"Northern Lights Hollow", type:"legendary", icon:"LEGENDCHEST"},
+    ],
+    fertileZones:[
+      {name:"Rimefrost Clearing", start:50,  end:85},
+      {name:"Bitterroot Flat",    start:200, end:235},
+      {name:"Windbreak Hollow",   start:500, end:535},
+      {name:"Thicket's End",      start:640, end:675},
+      {name:"Snowmelt Basin",     start:940, end:975},
+      {name:"Last Green Mile",    start:1200,end:1235},
+    ],
+  },
+  {
+    key:'old_coast_road', label:'The Old Coast Road', cost:450,
+    desc:'Longer and gentler. 2,400 miles hugging the coastline — heavy on rivers and towns, light on hazards.',
+    goalMiles:2400,
+    landmarks:[
+      {mile:150,  name:"Tidepool Landing",     type:"river",     icon:"FISH"},
+      {mile:320,  name:"Driftwood Docks",      type:"town",      icon:"STORE"},
+      {mile:480,  name:"Saltmarsh Split",      type:"fork",      icon:"SIGNPOST"},
+      {mile:650,  name:"Herring Run",          type:"river",     icon:"FISH"},
+      {mile:820,  name:"Barnacle Bay",         type:"town",      icon:"STORE"},
+      {mile:980,  name:"Foggy Hollow",         type:"hazard",    icon:"RAVINE"},
+      {mile:1150, name:"Clamshell Cove",       type:"river",     icon:"FISH"},
+      {mile:1320, name:"Pearl Harbor Post",    type:"town",      icon:"STORE"},
+      {mile:1480, name:"Riptide Crossing",     type:"river",     icon:"FISH"},
+      {mile:1650, name:"Shipwreck Shoals",     type:"hazard",    icon:"GORGE"},
+      {mile:1800, name:"Compass Rose Fork",    type:"fork",      icon:"SIGNPOST"},
+      {mile:1980, name:"Lighthouse Landing",   type:"town",      icon:"STORE"},
+      {mile:2150, name:"Mermaid's Mile",       type:"plains",    icon:"PAW"},
+      {mile:2280, name:"Coral Throne",         type:"legendary", icon:"LEGENDCHEST"},
+    ],
+    fertileZones:[
+      {name:"Seagrass Flat",      start:50,   end:90},
+      {name:"Windward Orchard",   start:230,  end:270},
+      {name:"Coastal Bramble",    start:400,  end:440},
+      {name:"Marsh Elder Grove",  start:560,  end:600},
+      {name:"Sandpiper Hollow",   start:720,  end:760},
+      {name:"Dune Berry Patch",   start:900,  end:940},
+      {name:"Salt Cedar Stand",   start:1080, end:1120},
+      {name:"Tidewater Thicket",  start:1250, end:1290},
+      {name:"Kelp Line Meadow",   start:1550, end:1590},
+      {name:"Harbor Orchard",     start:1900, end:1940},
+      {name:"Lighthouse Basin",   start:2050, end:2090},
+    ],
+  },
 ];
-
-// Foraging is only available while passing through one of these fertile
-// stretches — narrow windows tucked between landmarks — rather than being
-// free every single day. Each zone can only be foraged once per run.
-const FERTILE_ZONES = [
-  {name:"Sweetgrass Basin",   start:60,   end:100},
-  {name:"Bramble Flats",      start:230,  end:270},
-  {name:"Persimmon Hollow",   start:480,  end:520},
-  {name:"Wild Orchard Bend",  start:660,  end:700},
-  {name:"Berry Thicket",      start:820,  end:860},
-  {name:"Sourgrass Meadow",   start:970,  end:1010},
-  {name:"Fruiting Hollow",    start:1120, end:1160},
-  {name:"Bramblewood Pass",   start:1270, end:1310},
-  {name:"Thistle Orchard",    start:1420, end:1460},
-  {name:"Windfall Grove",     start:1560, end:1600},
-  {name:"Late Harvest Flats", start:1720, end:1760},
-  {name:"Golden Bramble",     start:1860, end:1900},
-];
+let LANDMARKS = TRAIL_ROUTES[0].landmarks;
+let FERTILE_ZONES = TRAIL_ROUTES[0].fertileZones;
+let RIVER_LANDMARKS = LANDMARKS.filter(lm=>lm.type==='river');
+function isRouteUnlocked(key){
+  if(key==='green_acres') return true;
+  return !!(playerProfile && (playerProfile.routes_unlocked||[]).includes(key));
+}
+function applyRoute(key){
+  const route = TRAIL_ROUTES.find(r=>r.key===key) || TRAIL_ROUTES[0];
+  TRAIL_GOAL = route.goalMiles;
+  LANDMARKS = route.landmarks;
+  FERTILE_ZONES = route.fertileZones;
+  RIVER_LANDMARKS = LANDMARKS.filter(lm=>lm.type==='river');
+  return route;
+}
+function activeRoute(){
+  const key = (playerProfile && playerProfile.active_route) || 'green_acres';
+  return TRAIL_ROUTES.find(r=>r.key===key) || TRAIL_ROUTES[0];
+}
+async function selectRoute(key){
+  if(!isRouteUnlocked(key)) return;
+  playerProfile.active_route = key;
+  applyRoute(key);
+  await saveProfile();
+  renderHome();
+}
+async function buyRoute(key){
+  const route = TRAIL_ROUTES.find(r=>r.key===key);
+  if(!route || isRouteUnlocked(key)) return;
+  if((playerProfile.trail_points||0)<route.cost) return;
+  playerProfile.trail_points -= route.cost;
+  playerProfile.routes_unlocked = (playerProfile.routes_unlocked||['green_acres']).concat(key);
+  await saveProfile();
+  await selectRoute(key);
+}
+function renderRoutes(){
+  const el = document.getElementById('route-list');
+  if(!el || !playerProfile) return;
+  el.innerHTML = TRAIL_ROUTES.map(r=>{
+    const unlocked = isRouteUnlocked(r.key);
+    const active = (playerProfile.active_route||'green_acres')===r.key;
+    const canAfford = !unlocked && (playerProfile.trail_points||0)>=r.cost;
+    let btn;
+    if(active) btn = `<button class="btn small" disabled>Active Route</button>`;
+    else if(unlocked) btn = `<button class="btn small" onclick="selectRoute('${r.key}')">Set Active</button>`;
+    else btn = `<button class="btn small" ${canAfford?'':'disabled'} onclick="buyRoute('${r.key}')">Unlock (${r.cost} pts)</button>`;
+    return `<div class="fork-card" style="${active?'border-color:var(--chain-cyan);':''}">
+      <h4>${r.label}${active?' \u2605':''}</h4>
+      <div class="muted" style="margin-bottom:6px;">${r.desc}</div>
+      <div class="muted" style="font-size:10.5px; margin-bottom:8px;">${r.goalMiles.toLocaleString()}mi \u00b7 ${r.landmarks.length} landmarks \u00b7 ${r.landmarks.filter(l=>l.type==='river').length} rivers \u00b7 ${r.landmarks.filter(l=>l.type==='hazard').length} hazards \u00b7 ${r.landmarks.filter(l=>l.type==='town').length} towns</div>
+      ${btn}
+    </div>`;
+  }).join('');
+}
 function currentFertileZone(){
   if(!state) return null;
   return FERTILE_ZONES.find(z=> state.distance>=z.start && state.distance<=z.end && !state.foragedZones.has(z.name)) || null;
@@ -814,7 +946,6 @@ function currentFertileZone(){
 // Once you reach the river's exact mile, the mandatory crossing choice
 // (ford / pay a guide) takes over, so fishing here is a pre-crossing
 // option, not an alternative to crossing.
-const RIVER_LANDMARKS = LANDMARKS.filter(lm=>lm.type==='river');
 function nearbyRiver(){
   if(!state) return null;
   return RIVER_LANDMARKS.find(lm=> state.distance>=lm.mile-20 && state.distance<lm.mile && !state.fishedRivers.has(lm.name)) || null;
@@ -1116,7 +1247,7 @@ async function connectWallet(){
    Guests get a session-only profile that resets on reload,
    since there's no account to attach it to.
    ============================================================ */
-const DEFAULT_PROFILE = { trail_points:0, oxen_tier:1, wheels_tier:1, storage_tier:1, quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
+const DEFAULT_PROFILE = { trail_points:0, perks_unlocked:[], active_route:'green_acres', routes_unlocked:['green_acres'], quest_town_done:false, quest_minigame_done:false, quest_finish_done:false, quest_date:null,
   wagon_canvas:'cream', wagon_trim:'walnut', wagon_wheel:'oak', wagon_accessory:'none', wagon_unlocked:[],
   lifetime_miles:0, lifetime_runs:0, lifetime_wins:0, lifetime_deaths:0,
   lifetime_animals_hunted:0, lifetime_fish_caught:0, lifetime_rivers_crossed:0, lifetime_legendary_encounters:0,
@@ -1158,8 +1289,8 @@ async function saveProfile(){
   if(!client) return;
   try{
     await client.from('player_profiles').update({
-      trail_points: playerProfile.trail_points, oxen_tier: playerProfile.oxen_tier,
-      wheels_tier: playerProfile.wheels_tier, storage_tier: playerProfile.storage_tier,
+      trail_points: playerProfile.trail_points, perks_unlocked: playerProfile.perks_unlocked,
+      active_route: playerProfile.active_route, routes_unlocked: playerProfile.routes_unlocked,
       quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
       quest_finish_done: playerProfile.quest_finish_done, quest_date: playerProfile.quest_date,
       username: currentUser.username,
@@ -1188,6 +1319,7 @@ async function goToHome(){
     ? 'Progress saves to your account automatically.'
     : "Playing as a guest — sign in with Google next time to keep your wagon upgrades and points.";
   await loadProfile();
+  applyRoute(playerProfile.active_route || 'green_acres');
   renderHome();
 }
 /* ============================================================
@@ -1283,6 +1415,7 @@ function renderTrailRecord(){
 function renderHome(){
   document.getElementById('home-points').textContent = (playerProfile.trail_points||0).toLocaleString();
   renderTrailRecord();
+  renderRoutes();
   drawWagonPreview();
   renderUpgrades();
   renderWagonCustomize();
@@ -1290,32 +1423,49 @@ function renderHome(){
   renderQuests();
 }
 
-const UPGRADE_COST = {1:150, 2:350};
-const UPGRADES = [
-  {key:'oxen_tier',    label:'Oxen Team',          desc:'More oxen pulling the wagon means a faster pace, every run.'},
-  {key:'wheels_tier',  label:'Reinforced Wheels',  desc:'Extra spare parts already loaded before you outfit.'},
-  {key:'storage_tier', label:'Storage Racks',      desc:'Extra food already loaded before you spend a cent outfitting.'},
+const WAGON_PERKS = [
+  {key:'ox1',    label:'Extra Ox I',        desc:'+1 oxen at the start of every run.',                                   cost:80,  requires:null},
+  {key:'ox2',    label:'Extra Ox II',       desc:'+1 more oxen.',                                                        cost:180, requires:'ox1'},
+  {key:'ox3',    label:'Extra Ox III',      desc:'+1 more oxen still.',                                                  cost:320, requires:'ox2'},
+  {key:'parts1', label:'Spare Parts Rack',  desc:'+1 spare part loaded before you spend a cent outfitting.',             cost:100, requires:null},
+  {key:'parts2', label:'Spare Parts Rack II', desc:'+1 more spare part.',                                                cost:220, requires:'parts1'},
+  {key:'food1',  label:'Storage Racks I',   desc:'+50 food loaded before you spend a cent outfitting.',                  cost:90,  requires:null},
+  {key:'food2',  label:'Storage Racks II',  desc:'+50 more food.',                                                       cost:200, requires:'food1'},
+  {key:'axle',   label:'Reinforced Axle',   desc:'15% chance to shrug off wagon trouble entirely.',                      cost:150, requires:null},
+  {key:'guide',  label:'Trail Contacts',    desc:'River guide fees cost 25% less.',                                      cost:150, requires:null},
+  {key:'haggle', label:'Silver Tongue',     desc:'Town prices an extra 5% cheaper, stacking with Leadership.',           cost:180, requires:null},
+  {key:'grit',   label:'Frontier Grit',     desc:'Hazard, sickness, repair, and river damage all reduced 15%.',          cost:220, requires:null},
+  {key:'luck',   label:'Lucky Charm',       desc:'Legendary trail-spirit gifts are 25% bigger.',                         cost:150, requires:null},
 ];
+function hasPerk(key){ return !!(playerProfile && (playerProfile.perks_unlocked||[]).includes(key)); }
+function perkCount(keys){ return keys.filter(hasPerk).length; }
+function perkOxenBonus(){ return perkCount(['ox1','ox2','ox3']); }
+function perkPartsBonus(){ return perkCount(['parts1','parts2']); }
+function perkFoodBonus(){ return perkCount(['food1','food2'])*50; }
 function renderUpgrades(){
   const el = document.getElementById('upgrade-list');
-  el.innerHTML = UPGRADES.map(u=>{
-    const tier = playerProfile[u.key]||1;
-    const maxed = tier>=3;
-    const cost = maxed?0:UPGRADE_COST[tier];
-    const canAfford = !maxed && (playerProfile.trail_points||0)>=cost;
-    return `<div class="item-name">${u.label} — Tier ${tier}/3<div class="item-price">${u.desc}</div></div>
+  if(!el) return;
+  el.innerHTML = WAGON_PERKS.map(p=>{
+    const owned = hasPerk(p.key);
+    const lockedByReq = p.requires && !hasPerk(p.requires);
+    const canAfford = !owned && !lockedByReq && (playerProfile.trail_points||0)>=p.cost;
+    const reqLabel = p.requires ? WAGON_PERKS.find(x=>x.key===p.requires).label : null;
+    const btnLabel = owned ? 'Owned' : lockedByReq ? `Needs ${reqLabel}` : `Unlock (${p.cost} pts)`;
+    return `<div class="item-name">${p.label}${owned?' \u2705':''}<div class="item-price">${p.desc}</div></div>
       <div></div>
-      <button class="btn small" ${(maxed||!canAfford)?'disabled':''} onclick="buyUpgrade('${u.key}')">${maxed?'Maxed':`Upgrade (${cost} pts)`}</button>
+      <button class="btn small" ${(owned||lockedByReq||!canAfford)?'disabled':''} onclick="buyWagonPerk('${p.key}')">${btnLabel}</button>
       <div></div>`;
   }).join('');
+  const progressEl = document.getElementById('perk-progress');
+  if(progressEl) progressEl.textContent = `${(playerProfile.perks_unlocked||[]).length}/${WAGON_PERKS.length} perks unlocked`;
 }
-async function buyUpgrade(key){
-  const tier = playerProfile[key]||1;
-  if(tier>=3) return;
-  const cost = UPGRADE_COST[tier];
-  if((playerProfile.trail_points||0)<cost) return;
-  playerProfile.trail_points -= cost;
-  playerProfile[key] = tier+1;
+async function buyWagonPerk(key){
+  const p = WAGON_PERKS.find(x=>x.key===key);
+  if(!p || hasPerk(key)) return;
+  if(p.requires && !hasPerk(p.requires)) return;
+  if((playerProfile.trail_points||0)<p.cost) return;
+  playerProfile.trail_points -= p.cost;
+  playerProfile.perks_unlocked = (playerProfile.perks_unlocked||[]).concat(key);
   await saveProfile();
   renderHome();
 }
@@ -1342,7 +1492,7 @@ function drawWagonPreview(){
   const w=canvas.width, h=canvas.height;
   ctx.clearRect(0,0,w,h);
   const pal = currentWagonPalette();
-  const oxenCount = 1 + (playerProfile.oxen_tier||1);
+  const oxenCount = 2 + perkOxenBonus();
   let ox = 50;
   for(let i=0;i<oxenCount;i++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, ox, h*0.72, 4); ox += 32; }
   const wagonX = ox+38, wagonY = h*0.58;
@@ -1546,15 +1696,18 @@ function departTrail(){
   const cost = outfitCost();
   const biomeCounts = {}; members.forEach(m=>biomeCounts[m.biome]=(biomeCounts[m.biome]||0)+1);
   const stackBonus = Math.max(...Object.values(biomeCounts)) - 1;
+  const route = applyRoute((playerProfile && playerProfile.active_route) || 'green_acres');
+  const routeLabelEl = document.getElementById('trail-route-name');
+  if(routeLabelEl) routeLabelEl.textContent = route.label;
   SPRITE_URLS.WAGON = spriteToDataURL(WAGON_ROWS, currentWagonPalette(), 4);
 
   state = {
     day:1, distance:0,
-    food: 100 + (playerProfile.storage_tier-1)*50 + outfitPurchases.food*50,
+    food: 100 + perkFoodBonus() + outfitPurchases.food*50,
     cash: outfitBudget - cost,
     ammo: 40 + outfitPurchases.ammo*20,
-    parts: 1 + (playerProfile.wheels_tier-1) + outfitPurchases.parts,
-    oxen: 2 + (playerProfile.oxen_tier-1)*2 + outfitPurchases.oxen,
+    parts: 1 + perkPartsBonus() + outfitPurchases.parts,
+    oxen: 2 + perkOxenBonus() + outfitPurchases.oxen,
     clothingBonus: Math.min(3, outfitPurchases.clothing*0.5),
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
@@ -1721,7 +1874,7 @@ function drawTravelScene(traveling, weary){
   drawSpriteCentered(ctx, WAGON_ROWS, wagonPal, wagonX, wagonY, 5);
   const wagonAccessory = WAGON_ACCESSORY_SPRITES[(playerProfile && playerProfile.wagon_accessory) || 'none'];
   if(wagonAccessory) drawSpriteCentered(ctx, wagonAccessory.rows, wagonAccessory.pal, wagonX+2, wagonY-42, 5);
-  const inTrailOxenCount = 1 + ((playerProfile && playerProfile.oxen_tier) || 1);
+  const inTrailOxenCount = 2 + perkOxenBonus();
   let oxX = 366;
   for(let oi=0; oi<inTrailOxenCount; oi++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, oxX, h*0.8+bob(6+oi), 4); oxX += 34; }
 }
@@ -2042,13 +2195,14 @@ function travelStretch(){
 }
 
 function applyHealth(delta, msg){
+  const gritMult = (delta<0 && hasPerk('grit')) ? 0.85 : 1;
   state.members.forEach(m=>{
     if(!m.alive) return;
-    let d = delta;
+    let d = delta * gritMult;
     if(delta<0){
       const effResist = Math.min(10, m.resist + (state.clothingBonus||0));
       const variance = 0.85 + Math.random()*0.3; // each member weathers it a little differently
-      d = delta * (1 - (effResist/10)*0.5) * variance;
+      d = d * (1 - (effResist/10)*0.5) * variance;
     }
     m.health = Math.min(100, Math.max(0, m.health + d));
     if(m.health<=0){ m.alive=false; logMsg(`${m.name} could not continue and was left at the trailside.`, 'bad'); }
@@ -2140,7 +2294,12 @@ function triggerLandmark(lm){
     triggerBanter();
     const ownsLegendary = state.members.some(m=>m.rarity==='Legendary');
     if(ownsLegendary){ logMsg(`${lm.name}: your legendary party member is recognized by the trail spirits — full party heal.`, 'chain'); state.members.forEach(m=>{ if(m.alive) m.health = 100; }); }
-    else { state.food += 40; state.cash += 30; logMsg(`${lm.name}: a legendary 1/1 wanderer passes through camp and leaves a gift (+40 food, +30 \u039e).`, 'chain'); }
+    else {
+      const luckMult = hasPerk('luck') ? 1.25 : 1;
+      const foodGift = Math.round(40*luckMult), cashGift = Math.round(30*luckMult);
+      state.food += foodGift; state.cash += cashGift;
+      logMsg(`${lm.name}: a legendary 1/1 wanderer passes through camp and leaves a gift (+${foodGift} food, +${cashGift} \u039e).`, 'chain');
+    }
     if(playerProfile) playerProfile.lifetime_legendary_encounters = (playerProfile.lifetime_legendary_encounters||0) + 1;
     renderTrail();
     setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
@@ -2164,7 +2323,7 @@ function openTown(lm){
 }
 function renderTownStore(){
   const leadership = partyStat('leadership');
-  const negotiated = Math.max(0.7, currentTownMult - leadership*0.015);
+  const negotiated = Math.max(0.6, currentTownMult - leadership*0.015 - (hasPerk('haggle')?0.05:0));
   const foodCost = Math.max(1, Math.round(PRICES.food50*negotiated));
   const ammoCost = Math.max(1, Math.round(PRICES.ammoBox*negotiated));
   const partsCost = Math.max(1, Math.round(PRICES.parts*negotiated));
@@ -2504,6 +2663,7 @@ function endFishing(){
    crossing risk), or pay a guide for a guaranteed safe crossing.
    ============================================================ */
 const RIVER_GUIDE_COST = 25;
+function guideCost(){ return hasPerk('guide') ? Math.round(RIVER_GUIDE_COST*0.75) : RIVER_GUIDE_COST; }
 let currentRiverStats = null;
 function generateRiverStats(lm){
   const frac = lm.mile/TRAIL_GOAL;
@@ -2528,7 +2688,7 @@ function openRiverChoice(lm){
   `;
   document.getElementById('river-options').innerHTML = `
     <div class="fork-card" onclick="chooseRiverFord()"><h4>Ford the River</h4><div class="muted">Raft across and dodge the current — Rafting skill sets how much of a beating the raft can take.</div></div>
-    <div class="fork-card" onclick="chooseRiverGuide()"><h4>Pay a Guide (${RIVER_GUIDE_COST} \u039e)</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
+    <div class="fork-card" onclick="chooseRiverGuide()"><h4>Pay a Guide (${guideCost()} \u039e)</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
   `;
   document.getElementById('modal-river').classList.remove('hide');
 }
@@ -2538,9 +2698,10 @@ function chooseRiverFord(){
 }
 function chooseRiverGuide(){
   document.getElementById('modal-river').classList.add('hide');
-  if(state.cash>=RIVER_GUIDE_COST){
-    state.cash -= RIVER_GUIDE_COST;
-    logMsg(`${pendingLandmark.name}: paid a guide for safe passage (-${RIVER_GUIDE_COST} \u039e).`, 'good');
+  const cost = guideCost();
+  if(state.cash>=cost){
+    state.cash -= cost;
+    logMsg(`${pendingLandmark.name}: paid a guide for safe passage (-${cost} \u039e).`, 'good');
   } else {
     logMsg(`${pendingLandmark.name}: couldn't afford a guide — forded alone and got lucky, no damage taken.`, 'good');
   }
@@ -2688,6 +2849,10 @@ function chooseDecision(i){
 
 /* ---- Tinkering: wagon trouble ---- */
 function triggerWagonTrouble(){
+  if(hasPerk('axle') && Math.random()<0.15){
+    logMsg("Axle trouble flares up — but the reinforced axle shrugs it off. No damage, no delay.", 'good');
+    return;
+  }
   const tinkering = partyStat('tinkering');
   openDecision({
     title: "Axle Trouble",
