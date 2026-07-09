@@ -93,12 +93,12 @@
     border:5px solid transparent; border-top-color:var(--parchment); z-index:1;
   }
   .bubble.show{opacity:1; transform:translateX(-50%) translateY(0) scale(1);}
-  .trailmap{position:relative; height:70px; margin:6px 0 20px;}
-  .trailmap .track{position:absolute; top:32px; left:0; right:0; height:4px; background:rgba(43,35,24,.18); border-radius:2px;}
-  .trailmap .fill{position:absolute; top:32px; left:0; height:4px; background:linear-gradient(90deg,var(--good),var(--chain-cyan)); border-radius:2px; transition:width .4s ease;}
-  .trailmap .wagon{position:absolute; top:6px; transform:translateX(-50%); transition:left .4s ease;}
-  .trailmap .lm{position:absolute; top:22px; transform:translateX(-50%);}
-  .trailmap .lm-label{position:absolute; top:44px; font-size:8.5px; transform:translateX(-50%); white-space:nowrap; color:#6a5d44;}
+  .trailmap{position:relative; height:100px; margin:6px 0 20px;}
+  .trailmap .track{position:absolute; top:50px; left:0; right:0; height:3px; background:rgba(43,35,24,.14); border-radius:2px;}
+  .trailmap .fill{position:absolute; top:50px; left:0; height:3px; background:linear-gradient(90deg,var(--good),var(--chain-cyan)); border-radius:2px; transition:width 1.1s ease;}
+  .trailmap .wagon{position:absolute; transform:translate(-50%,-50%); transition:left 1.1s ease, top 1.1s ease;}
+  .trailmap .lm{position:absolute; transform:translate(-50%,-50%);}
+  .trailmap .lm-label{position:absolute; font-size:8.5px; transform:translateX(-50%); white-space:nowrap; color:#6a5d44;}
 
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:10px 0;}
   .stat-box{background:rgba(43,35,24,.06); border-radius:5px; padding:9px 10px;}
@@ -262,9 +262,9 @@
       </div>
       <div class="row" style="margin-top:8px;">
         <button class="btn small" onclick="restDay()">🛌 Rest a Day</button>
-        <button class="btn small" onclick="forage()">🌿 Forage</button>
+        <button class="btn small" id="forage-btn" onclick="forageAttempt()">🌿 Forage</button>
         <button class="btn small" onclick="huntAnytime()">🏹 Hunt Now</button>
-        <span class="muted" id="action-hint">Rest heals but costs a day. Forage is free but limited to once per day. Hunting costs ammo, not time.</span>
+        <span class="muted" id="action-hint">Rest heals but costs a day. Forage only pays off on fertile ground — watch the log for it. Hunting costs ammo, not time.</span>
       </div>
       <div class="log" id="log"></div>
     </div>
@@ -288,6 +288,7 @@
   <div id="modal-town" class="modal-bg hide">
     <div class="modal">
       <h3 id="town-title"></h3>
+      <div class="muted" id="town-preview" style="margin-bottom:6px;"></div>
       <div class="npc-quote" id="town-quote"></div>
       <div class="store-grid" id="town-store"></div>
       <div class="row between" style="margin-top:10px;">
@@ -308,7 +309,7 @@
   <div id="modal-hunt" class="modal-bg hide">
     <div class="modal">
       <h3><img id="hunt-icon" class="pixel" width="20" height="20"><span id="hunt-title">Hunting</span></h3>
-      <p class="muted">Click game as it crosses the field. Each shot costs 1 ammo. <span id="hunt-timer">8</span>s left.</p>
+      <p class="muted">Deer dash, rabbits hop in bursts, turkeys zigzag, bison amble slow but take 2 hits. Each shot costs 1 ammo. <span id="hunt-timer">8</span>s left.</p>
       <canvas id="huntCanvas" width="400" height="240"></canvas>
       <div class="row between">
         <div class="muted">Hits: <b id="hunt-hits">0</b> &nbsp;|&nbsp; Ammo: <b id="hunt-ammo">0</b></div>
@@ -322,7 +323,50 @@
       <h3><img id="fish-icon" class="pixel" width="20" height="20"><span id="fish-title">Fishing</span></h3>
       <p class="muted">Click "Reel!" when the marker is inside the green zone. <span id="fish-round-label">Cast 1 / 5</span></p>
       <div class="fish-track"><div class="fish-zone" id="fish-zone"></div><div class="fish-marker" id="fish-marker"></div></div>
+      <div class="npc-quote hide" id="fish-catch-reveal" style="text-align:center; font-style:normal; font-weight:600;"></div>
       <div class="row between"><div class="muted">Catches: <b id="fish-catches">0</b></div><button class="btn" id="fish-reel-btn" onclick="reelFish()">Reel!</button></div>
+    </div>
+  </div>
+
+  <div id="modal-forage" class="modal-bg hide">
+    <div class="modal">
+      <h3><img id="forage-icon" class="pixel" width="20" height="20"><span id="forage-title">Foraging</span></h3>
+      <p class="muted">Move your mouse (or finger) to slide the basket. Berries and apples are worth food — thorns cost you a little. <span id="forage-timer">10</span>s left.</p>
+      <canvas id="forageCanvas" width="400" height="240"></canvas>
+      <div class="row between">
+        <div class="muted">Caught: <b id="forage-catches">0</b> &nbsp;|&nbsp; Thorns: <b id="forage-thorns">0</b></div>
+        <button class="btn" id="forage-start-btn" onclick="startForage()">Start Foraging</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-river" class="modal-bg hide">
+    <div class="modal">
+      <h3 id="river-title"></h3>
+      <p class="muted" id="river-desc"></p>
+      <div class="stat-grid" id="river-stats"></div>
+      <div class="fork-options" id="river-options"></div>
+    </div>
+  </div>
+
+  <div id="modal-raft" class="modal-bg hide">
+    <div class="modal">
+      <h3><img id="raft-icon" class="pixel" width="20" height="20"><span id="raft-title">Fording the River</span></h3>
+      <p class="muted">Slide the raft to dodge rocks and logs. Rafting skill sets how much of a beating the raft can take.</p>
+      <div class="hb-track" style="height:12px; margin-bottom:8px;"><div class="hb-fill" id="raft-health-bar" style="width:100%"></div></div>
+      <canvas id="raftCanvas" width="400" height="240"></canvas>
+      <div class="row between">
+        <div class="muted">Raft integrity: <b id="raft-health-label">100%</b></div>
+        <button class="btn" id="raft-start-btn" onclick="startRafting()">Push Off</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-decision" class="modal-bg hide">
+    <div class="modal">
+      <h3 id="decision-title"></h3>
+      <p class="muted" id="decision-desc"></p>
+      <div class="fork-options" id="decision-options"></div>
     </div>
   </div>
 
@@ -508,6 +552,20 @@ const BISON_PAL = {A:'#3d2b1f', B:'#6d4c33', K:'#241a11'};
 const TURKEY_ROWS = ["..A.....","..AA....",".KKKKK..","KBBBBBK.","KBBBBBK.",".BBBBB..","..K.K..."];
 const TURKEY_PAL = {A:'#b23a2f', K:'#241a11', B:'#7a5c3e'};
 
+const APPLE_ROWS = [".GG...",".RRRR.","RRRRRR","RRRRRR",".RRRR."];
+const APPLE_PAL = {G:'#3d6b2f', R:'#c9382c'};
+const BERRY_ROWS = [".B.B.",".BBB.","BBBBB","BBBBB"];
+const BERRY_PAL = {B:'#5b2f8a'};
+const THORN_ROWS = ["K...K","KK.KK",".KKK.","KK.KK","K...K"];
+const THORN_PAL = {K:'#4a3626'};
+
+const RAFT_ROWS = ["KKKKKKKKKK","WWWWWWWWWW","WWWWWWWWWW","KKKKKKKKKK"];
+const RAFT_PAL = {K:'#3a2a1a', W:'#8a6a4a'};
+const ROCK_ROWS = [".KK.","KKKK","KKKK",".KK."];
+const ROCK_PAL = {K:'#6b6b6b'};
+const LOG_ROWS = ["KKKKKKKK","WWWWWWWW","KKKKKKKK"];
+const LOG_PAL = {K:'#3a2a1a', W:'#6d4c33'};
+
 const ICONS = {
   FUEL: {rows:["..KKKK..",".KWWWWK.","KWWRWWWK","KWWRWWWK","KWWWWWWK","KWWWWWWK","KWWWWWWK","..KKKK.."], pal:{K:'#2b2318', W:'#8d8d8d', R:'#b23a2f'}},
   RAVINE: {rows:["KK....KK","KKK..KKK",".KKKKKK.","KK.KK.KK","KKK..KKK","K.KKKK.K","KK.KK.KK","KKKKKKKK"], pal:{K:'#5b3a29'}},
@@ -517,6 +575,9 @@ const ICONS = {
   SIGNPOST: {rows:["..KKKK..",".KWWWWK.","KWWWWWWK","..K..K..","..K..K..","..K..K..","..K..K..","..KKKK.."], pal:{K:'#3a3226', W:'#e4d3a8'}},
   CHAINLINK: {rows:["OKKO..OK","K....K..","K....K..","OKKO.OKK","..K....K","..K....K","OKKO..OK","........"], pal:{K:'#4fd6c4', O:'#2f6f66'}},
   LEGENDCHEST: {rows:["KKKKKKKK","KYYYYYYK","KYWWWWYK","KYYYYYYK","KWWWWWWK","KWWWWWWK","KWWWWWWK","KKKKKKKK"], pal:{K:'#3a3226', Y:'#c9a227', W:'#e4d3a8'}},
+  BASKET: {rows:[".KKKKKK.","K......K","KWWWWWWK","KWWWWWWK","KKKKKKKK","........","........","........"], pal:{K:'#5b3a29', W:'#c9382c'}},
+  WRENCH: {rows:["...KKK..","..KK.KK.",".KK...K.","..KK.K..","...KK...","..KK....",".KK.....","KK......"], pal:{K:'#6b6b6b'}},
+  MEDKIT: {rows:["KKKKKKKK","KWWWWWWK","KWWRRWWK","KWRRRRWK","KWWRRWWK","KWWWWWWK","KKKKKKKK","........"], pal:{K:'#2b2318', W:'#e4d3a8', R:'#b23a2f'}},
 };
 
 const SPRITE_URLS = {WAGON: spriteToDataURL(WAGON_ROWS, WAGON_PAL, 4)};
@@ -600,6 +661,28 @@ const LANDMARKS = [
   {mile:1800, name:"Airdrop Alley",         type:"town",      icon:"STORE"},
   {mile:1920, name:"Genesis Block Gulch",   type:"legendary", icon:"LEGENDCHEST"},
 ];
+
+// Foraging is only available while passing through one of these fertile
+// stretches — narrow windows tucked between landmarks — rather than being
+// free every single day. Each zone can only be foraged once per run.
+const FERTILE_ZONES = [
+  {name:"Sweetgrass Basin",   start:60,   end:100},
+  {name:"Bramble Flats",      start:230,  end:270},
+  {name:"Persimmon Hollow",   start:480,  end:520},
+  {name:"Wild Orchard Bend",  start:660,  end:700},
+  {name:"Berry Thicket",      start:820,  end:860},
+  {name:"Sourgrass Meadow",   start:970,  end:1010},
+  {name:"Fruiting Hollow",    start:1120, end:1160},
+  {name:"Bramblewood Pass",   start:1270, end:1310},
+  {name:"Thistle Orchard",    start:1420, end:1460},
+  {name:"Windfall Grove",     start:1560, end:1600},
+  {name:"Late Harvest Flats", start:1720, end:1760},
+  {name:"Golden Bramble",     start:1860, end:1900},
+];
+function currentFertileZone(){
+  if(!state) return null;
+  return FERTILE_ZONES.find(z=> state.distance>=z.start && state.distance<=z.end && !state.foragedZones.has(z.name)) || null;
+}
 
 const PACE = {
   steady:    {label:"Steady",    milesMin:12, milesMax:16, daysPerStretch:3, fatigue:0,  eventMod:1.0},
@@ -1231,7 +1314,7 @@ function departTrail(){
     clothingBonus: Math.min(3, outfitPurchases.clothing*0.5),
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
-    sceneMode:'trail', foragesToday:0,
+    sceneMode:'trail', foragedZones:new Set(),
   };
   logMsg(`Party departs the Genesis Homestead with ${state.oxen} oxen, ${state.food}lb food, ${state.ammo} ammo, ${state.parts} spare parts.`, 'chain');
   if(stackBonus>0){
@@ -1393,15 +1476,26 @@ function renderTrail(){
   document.getElementById('stat-parts').textContent = Math.max(0,state.parts);
   document.getElementById('stat-oxen').textContent = state.oxen;
 
+  const forageBtn = document.getElementById('forage-btn');
+  if(forageBtn){
+    const zone = currentFertileZone();
+    forageBtn.textContent = zone ? `🌿 Forage (${zone.name}!)` : '🌿 Forage';
+    forageBtn.classList.toggle('chain', !!zone);
+  }
+
   const map = document.getElementById('trailmap');
   const pct = Math.min(100, state.distance/TRAIL_GOAL*100);
+  const bendY = frac=> 50 + Math.sin(frac*Math.PI*3.2)*26; // winding vertical offset along the trail
   let lmHtml = '';
   LANDMARKS.forEach(lm=>{
-    const p = Math.min(100, lm.mile/TRAIL_GOAL*100);
-    lmHtml += `<img class="lm pixel" style="left:${p}%" src="${SPRITE_URLS[lm.icon]}" width="20" height="20">
-               <div class="lm-label" style="left:${p}%">${lm.name}</div>`;
+    const frac = Math.min(1, lm.mile/TRAIL_GOAL);
+    const p = frac*100;
+    const y = bendY(frac);
+    lmHtml += `<img class="lm pixel" style="left:${p}%; top:${y-6}px" src="${SPRITE_URLS[lm.icon]}" width="20" height="20">
+               <div class="lm-label" style="left:${p}%; top:${y+14}px">${lm.name}</div>`;
   });
-  map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
+  const wagonY = bendY(pct/100);
+  map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%; top:${wagonY}px" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
 
   state.members.forEach((m,i)=>{
     const img = document.getElementById('party-img-'+i);
@@ -1498,9 +1592,12 @@ function travelStretch(){
   const oxenAdj = Math.max(-4, Math.min(6, (state.oxen-2)*1));
   let miles = (pace.milesMin+oxenAdj) + Math.random()*((pace.milesMax+oxenAdj)-(pace.milesMin+oxenAdj));
   miles = Math.max(4, miles);
+  const prevDistance = state.distance;
   state.distance += miles;
   state.day += pace.daysPerStretch;
-  state.foragesToday = 0;
+
+  const enteredZone = FERTILE_ZONES.find(z=> z.start>prevDistance && z.start<=state.distance && !state.foragedZones.has(z.name));
+  if(enteredZone) logMsg(`Passing through ${enteredZone.name} — fertile ground nearby. Forage while you can.`, 'chain');
 
   const aliveCount = state.members.filter(m=>m.alive).length;
   const consumed = ration.perMember * aliveCount;
@@ -1540,22 +1637,9 @@ function rollRandomEvent(mod){
     const gain = 15+Math.floor(Math.random()*20); state.food += gain;
     logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
   } else if(r<0.65){
-    const medicine = partyStat('medicine'), resist = partyStat('resist');
-    const dmg = Math.max(2, Math.round((8*mod) - medicine*0.4 - resist*0.3));
-    applyHealth(-dmg, `Sickness sweeps the wagon (Medicine ${medicine.toFixed(1)} softened it).`);
+    triggerSickness();
   } else if(r<0.80){
-    const tinkering = partyStat('tinkering');
-    if(state.parts>0 && tinkering>=4){
-      state.parts--;
-      logMsg(`Axle trouble — repaired quickly using a spare part (Tinkering ${tinkering.toFixed(1)}).`, 'good');
-    } else if(state.parts<=0){
-      const dmg = Math.max(2, Math.round(6 - tinkering*0.4));
-      applyHealth(-dmg, `Wagon trouble strikes with no spare parts on hand (Tinkering ${tinkering.toFixed(1)} limited the damage).`);
-      state.distance = Math.max(0, state.distance-8);
-    } else {
-      applyHealth(-5, `Wagon trouble slows the party — Tinkering ${tinkering.toFixed(1)} isn't quite enough for a clean fix.`);
-      state.distance = Math.max(0, state.distance-8);
-    }
+    triggerWagonTrouble();
   } else if(r<0.92){
     const leadership = partyStat('leadership');
     if(Math.random()*10 < leadership){ logMsg(`A thief was spotted and driven off (Leadership ${leadership.toFixed(1)}).`, 'good'); }
@@ -1576,7 +1660,6 @@ function rollRandomEvent(mod){
 function restDay(){
   if(state.over) return;
   state.day += 1;
-  state.foragesToday = 0;
   const aliveCount = state.members.filter(m=>m.alive).length;
   const consumed = 2 * aliveCount;
   state.food -= consumed;
@@ -1586,20 +1669,15 @@ function restDay(){
   checkEndConditions();
   renderTrail();
 }
-function forage(){
+function forageAttempt(){
   if(state.over) return;
-  if(state.foragesToday>=1){ logMsg("Already foraged today — travel or rest before trying again.", 'bad'); renderTrail(); return; }
-  state.foragesToday++;
-  const scavenging = partyStat('scavenging');
-  const roll = Math.random()*10;
-  if(roll < scavenging){
-    const gain = 10+Math.floor(Math.random()*15);
-    state.food += gain;
-    logMsg(`Foraged along the trailside — found ${gain} lb of food (Scavenging ${scavenging.toFixed(1)}).`, 'good');
-  } else {
-    logMsg(`Foraged the roadside but came up empty-handed.`, 'bad');
+  const zone = currentFertileZone();
+  if(!zone){
+    logMsg("Nothing worth picking around here — foraging only pays off on fertile ground, and you're not standing on any right now.", 'bad');
+    renderTrail();
+    return;
   }
-  renderTrail();
+  openForageGame(zone);
 }
 function huntAnytime(){
   if(state.over) return;
@@ -1612,19 +1690,14 @@ function huntAnytime(){
 let pendingLandmark = null;
 function triggerLandmark(lm){
   pendingLandmark = lm;
-  if(lm.type==='river'){ state.sceneMode='river'; triggerBanter(); openFishing(lm); }
+  if(lm.type==='river'){ state.sceneMode='river'; triggerBanter(); openRiverChoice(lm); }
   else if(lm.type==='plains'){ state.sceneMode='plains'; triggerBanter(); openHunting(lm); }
   else if(lm.type==='town'){ state.sceneMode='town'; triggerBanter(); openTown(lm); }
   else if(lm.type==='fork'){ state.sceneMode='fork'; triggerBanter(); openFork(lm); }
   else if(lm.type==='hazard'){
     state.sceneMode='hazard';
     triggerBanter();
-    const resist = partyStat('resist'), tinkering = partyStat('tinkering');
-    const mitig = (resist+tinkering)/2;
-    const dmg = Math.max(3, Math.round(14 - mitig*0.8));
-    applyHealth(-dmg, `${lm.name}: a major hazard tests the party (mitigation ${mitig.toFixed(1)}).`);
-    renderTrail();
-    setTimeout(()=>{ state.sceneMode='trail'; }, 2600);
+    openHazardChoice(lm);
   } else if(lm.type==='legendary'){
     state.sceneMode='legendary';
     triggerBanter();
@@ -1637,20 +1710,33 @@ function triggerLandmark(lm){
 }
 
 /* ---- Town: shop + NPC ---- */
+let currentTownMult = 1.0;
 function openTown(lm){
   document.getElementById('town-title').innerHTML = `<img class="pixel" src="${SPRITE_URLS.STORE}" width="20" height="20"> ${lm.name}`;
+  const population = 200 + Math.floor(Math.random()*3800);
+  const priceRoll = Math.random();
+  let priceLabel;
+  if(priceRoll<0.3){ currentTownMult = 0.85; priceLabel = 'Prices are cheap here.'; }
+  else if(priceRoll<0.75){ currentTownMult = 1.0; priceLabel = 'Prices are fair here.'; }
+  else { currentTownMult = 1.25; priceLabel = 'Prices are steep here.'; }
+  document.getElementById('town-preview').textContent = `Population ${population.toLocaleString()}. ${priceLabel}`;
   document.getElementById('town-quote').textContent = NPC_QUOTES[Math.floor(Math.random()*NPC_QUOTES.length)];
   renderTownStore();
   document.getElementById('modal-town').classList.remove('hide');
 }
 function renderTownStore(){
+  const leadership = partyStat('leadership');
+  const negotiated = Math.max(0.7, currentTownMult - leadership*0.015);
+  const foodCost = Math.max(1, Math.round(PRICES.food50*negotiated));
+  const ammoCost = Math.max(1, Math.round(PRICES.ammoBox*negotiated));
+  const partsCost = Math.max(1, Math.round(PRICES.parts*negotiated));
   document.getElementById('town-store').innerHTML = `
-    <div class="item-name">Food (50 lb) <div class="item-price">${PRICES.food50} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('food',50,${PRICES.food50})">Buy</button><div></div>
-    <div class="item-name">Ammo Box (20) <div class="item-price">${PRICES.ammoBox} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('ammo',20,${PRICES.ammoBox})">Buy</button><div></div>
-    <div class="item-name">Spare Part <div class="item-price">${PRICES.parts} \u039e</div></div>
-    <div></div><button class="btn small" onclick="townBuy('parts',1,${PRICES.parts})">Buy</button><div></div>
+    <div class="item-name">Food (50 lb) <div class="item-price">${foodCost} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('food',50,${foodCost})">Buy</button><div></div>
+    <div class="item-name">Ammo Box (20) <div class="item-price">${ammoCost} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('ammo',20,${ammoCost})">Buy</button><div></div>
+    <div class="item-name">Spare Part <div class="item-price">${partsCost} \u039e</div></div>
+    <div></div><button class="btn small" onclick="townBuy('parts',1,${partsCost})">Buy</button><div></div>
   `;
   document.getElementById('town-cash').textContent = Math.max(0,Math.floor(state.cash));
 }
@@ -1710,17 +1796,59 @@ function chooseFork(i){
   renderTrail();
 }
 
+/* ---- Hazard: difficulty preview + real choice ---- */
+function openHazardChoice(lm){
+  const frac = lm.mile/TRAIL_GOAL;
+  const baseDanger = 10 + frac*10 + Math.random()*4;
+  const diffLabel = baseDanger<14 ? 'Moderate' : baseDanger<18 ? 'Severe' : 'Extreme';
+  openDecision({
+    title: lm.name,
+    icon: SPRITE_URLS[lm.icon] || SPRITE_URLS.RAVINE,
+    desc: `Terrain difficulty: ${diffLabel}. Push through now, or take it slow and brace properly.`,
+    options: [
+      {label:"Push Through", detail:"Move at normal pace through the hazard.", apply:()=>resolveHazard(lm, baseDanger, false)},
+      {label:"Take It Slow (+1 day)", detail:"Costs an extra day, but the party braces properly and takes less damage.", apply:()=>resolveHazard(lm, baseDanger, true)},
+    ]
+  });
+}
+function resolveHazard(lm, baseDanger, slow){
+  const resist = partyStat('resist'), tinkering = partyStat('tinkering');
+  const mitig = (resist+tinkering)/2 + (slow?3:0);
+  const dmg = Math.max(2, Math.round(baseDanger - mitig*0.8));
+  if(slow) state.day += 1;
+  applyHealth(-dmg, `${lm.name}: ${slow?'took it slow through':'pushed through'} a major hazard (mitigation ${mitig.toFixed(1)}).`);
+  state.sceneMode='trail';
+  checkEndConditions();
+  renderTrail();
+}
+
 /* ============================================================
-   HUNTING MINIGAME
+   HUNTING MINIGAME — each species moves differently: deer dash
+   fast in a straight line, rabbits hop in bursts with pauses,
+   bison amble slowly but take 2 hits, turkeys zigzag erratically.
+   Hunting skill raises spawn rate; value differs per species, so
+   a good hunt is about which animals you connect with, not just
+   how many clicks land.
    ============================================================ */
-let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntTimeLeft=8, huntTimerId=null, huntSpawnId=null;
-const ANIMALS = [{rows:DEER_ROWS,pal:DEER_PAL},{rows:RABBIT_ROWS,pal:RABBIT_PAL},{rows:BISON_ROWS,pal:BISON_PAL},{rows:TURKEY_ROWS,pal:TURKEY_PAL}];
+let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntKillValue=0, huntTimeLeft=8, huntTimerId=null, huntSpawnId=null, huntRAF=null;
+const ANIMALS = {
+  deer:   {rows:DEER_ROWS,   pal:DEER_PAL,   r:20, hp:1, value:14, speedMin:3.2, speedMax:4.4, weight:25},
+  rabbit: {rows:RABBIT_ROWS, pal:RABBIT_PAL, r:14, hp:1, value:8,  speedMin:2.4, speedMax:3.4, weight:35},
+  bison:  {rows:BISON_ROWS,  pal:BISON_PAL,  r:26, hp:2, value:22, speedMin:0.8, speedMax:1.3, weight:10},
+  turkey: {rows:TURKEY_ROWS, pal:TURKEY_PAL, r:16, hp:1, value:10, speedMin:1.6, speedMax:2.4, weight:30},
+};
+function pickAnimalKind(){
+  const totalW = Object.values(ANIMALS).reduce((s,d)=>s+d.weight,0);
+  let roll = Math.random()*totalW;
+  for(const k in ANIMALS){ roll -= ANIMALS[k].weight; if(roll<=0) return k; }
+  return 'deer';
+}
 
 function openHunting(lm){
   document.getElementById('hunt-icon').src = SPRITE_URLS[lm.icon] || SPRITE_URLS.PAW;
   document.getElementById('hunt-title').textContent = lm.name + " — Hunting";
   document.getElementById('modal-hunt').classList.remove('hide');
-  huntHits=0; huntTimeLeft=8; huntTargets=[];
+  huntHits=0; huntKillValue=0; huntTimeLeft=8; huntTargets=[];
   document.getElementById('hunt-hits').textContent = '0';
   document.getElementById('hunt-ammo').textContent = state.ammo;
   document.getElementById('hunt-timer').textContent = '8';
@@ -1739,39 +1867,95 @@ function startHunt(){
   huntSpawnId = setInterval(spawnTarget, spawnRate);
   huntTimerId = setInterval(function(){
     huntTimeLeft--; document.getElementById('hunt-timer').textContent = huntTimeLeft;
-    drawHunt(); if(huntTimeLeft<=0) endHunt();
+    if(huntTimeLeft<=0) endHunt();
   }, 1000);
-  drawHunt();
+  huntFrameLoop();
 }
 function spawnTarget(){
   const canvas = document.getElementById('huntCanvas');
-  const kind = ANIMALS[Math.floor(Math.random()*ANIMALS.length)];
-  huntTargets.push({x:30+Math.random()*(canvas.width-60), y:30+Math.random()*(canvas.height-60), r:20, kind:kind, born:Date.now(), life:1400+Math.random()*600});
+  const kind = pickAnimalKind();
+  const def = ANIMALS[kind];
+  const fromLeft = Math.random()<0.5;
+  const y = 26+Math.random()*(canvas.height-52);
+  const speed = def.speedMin + Math.random()*(def.speedMax-def.speedMin);
+  const x = fromLeft ? -20 : canvas.width+20;
+  const vx = fromLeft ? speed : -speed;
+  huntTargets.push({
+    kind, x, y, vx, vy:(Math.random()-0.5)*0.5,
+    hp:def.hp, maxHp:def.hp, r:def.r, value:def.value,
+    born:Date.now(), hopping:true, hopTimer:0, zigTimer:0, flashUntil:0,
+  });
+}
+function huntFrameLoop(){
+  if(!huntActive) return;
+  const canvas = document.getElementById('huntCanvas');
+  const now = Date.now();
+  for(let i=huntTargets.length-1;i>=0;i--){
+    const t = huntTargets[i];
+    const def = ANIMALS[t.kind];
+    if(t.kind==='rabbit'){
+      t.hopTimer -= 16;
+      if(t.hopTimer<=0){
+        t.hopping = !t.hopping;
+        t.hopTimer = t.hopping ? (150+Math.random()*150) : (220+Math.random()*220);
+        if(t.hopping){ const s=def.speedMin+Math.random()*(def.speedMax-def.speedMin); t.vx = (t.vx>=0?1:-1)*s; }
+      }
+      if(t.hopping){ t.x += t.vx; t.y += Math.sin(now*0.02)*0.7; }
+    } else if(t.kind==='turkey'){
+      t.zigTimer -= 16;
+      if(t.zigTimer<=0){ t.vy = (Math.random()-0.5)*3.2; t.zigTimer = 180+Math.random()*220; }
+      t.x += t.vx; t.y += t.vy;
+      t.y = Math.max(18, Math.min(canvas.height-18, t.y));
+    } else {
+      t.x += t.vx; t.y += t.vy;
+    }
+    const offscreen = t.x < -40 || t.x > canvas.width+40;
+    const stale = now - t.born > 6000;
+    if(offscreen || stale) huntTargets.splice(i,1);
+  }
+  drawHunt();
+  huntRAF = requestAnimationFrame(huntFrameLoop);
 }
 function drawHunt(){
   const canvas = document.getElementById('huntCanvas');
   huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
   const now = Date.now();
-  huntTargets = huntTargets.filter(function(t){ return now - t.born < t.life; });
-  huntTargets.forEach(function(t){ drawSpriteCentered(huntCtx, t.kind.rows, t.kind.pal, t.x, t.y, 4); });
+  huntTargets.forEach(function(t){
+    const def = ANIMALS[t.kind];
+    drawSpriteCentered(huntCtx, def.rows, def.pal, t.x, t.y, 4);
+    if(t.hp<t.maxHp){
+      huntCtx.strokeStyle = now<t.flashUntil ? '#b23a2f' : 'rgba(178,58,47,.5)';
+      huntCtx.lineWidth = 2;
+      huntCtx.beginPath(); huntCtx.arc(t.x, t.y, t.r+6, 0, Math.PI*2); huntCtx.stroke();
+    }
+  });
 }
 function handleHuntClick(e){
   if(!huntActive) return;
   if(state.ammo<=0){ return; }
   state.ammo--; document.getElementById('hunt-ammo').textContent = state.ammo;
   const rect = e.target.getBoundingClientRect();
-  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const scaleX = e.target.width/rect.width, scaleY = e.target.height/rect.height;
+  const x = (e.clientX-rect.left)*scaleX, y = (e.clientY-rect.top)*scaleY;
   for(let i=huntTargets.length-1;i>=0;i--){
     const t = huntTargets[i];
-    if(Math.hypot(t.x-x,t.y-y)<t.r+10){ huntTargets.splice(i,1); huntHits++; document.getElementById('hunt-hits').textContent = huntHits; drawHunt(); break; }
+    if(Math.hypot(t.x-x,t.y-y)<t.r+10){
+      t.hp--; t.flashUntil = Date.now()+150;
+      if(t.hp<=0){
+        huntTargets.splice(i,1);
+        huntHits++; huntKillValue += t.value;
+        document.getElementById('hunt-hits').textContent = huntHits;
+      }
+      break;
+    }
   }
 }
 function endHunt(){
-  huntActive=false; clearInterval(huntSpawnId); clearInterval(huntTimerId);
+  huntActive=false; clearInterval(huntSpawnId); clearInterval(huntTimerId); cancelAnimationFrame(huntRAF);
   document.getElementById('modal-hunt').classList.add('hide');
   state.sceneMode='trail';
   const huntingSkill = partyStat('hunting');
-  const gain = Math.round(huntHits*12 + huntingSkill*4);
+  const gain = Math.round(huntKillValue + huntingSkill*4);
   state.food += gain;
   logMsg(`${pendingLandmark.name}: hunted ${huntHits} game (+${gain} food, Hunting ${huntingSkill.toFixed(1)}).`, 'good');
   if(huntHits>0) completeQuest('quest_minigame_done', 20);
@@ -1779,14 +1963,25 @@ function endHunt(){
 }
 
 /* ============================================================
-   FISHING MINIGAME
+   FISHING MINIGAME — each catch is a real species and weight,
+   revealed as you land it, summed into a catch log at the end.
+   Fishing skill widens the reel zone (already tuned) and nudges
+   weight upward, since a sharper angler lands the bigger ones.
    ============================================================ */
-let fishRound=0, fishCatches=0, fishPos=0, fishDir=1, fishAnim=null, fishZoneStart=0, fishZoneWidth=0;
+let fishRound=0, fishCatches=0, fishPos=0, fishDir=1, fishAnim=null, fishZoneStart=0, fishZoneWidth=0, fishCatchLog=[];
+const FISH_SPECIES = [
+  {name:"Trout",   minLb:1,   maxLb:3},
+  {name:"Bass",    minLb:1.5, maxLb:4},
+  {name:"Catfish", minLb:2,   maxLb:6},
+  {name:"Pike",    minLb:3,   maxLb:7},
+  {name:"Salmon",  minLb:4,   maxLb:9},
+];
 function openFishing(lm){
   document.getElementById('fish-icon').src = SPRITE_URLS.FISH;
   document.getElementById('fish-title').textContent = lm.name + " — Fishing";
   document.getElementById('modal-fish').classList.remove('hide');
-  fishRound=0; fishCatches=0; document.getElementById('fish-catches').textContent='0';
+  fishRound=0; fishCatches=0; fishCatchLog=[]; document.getElementById('fish-catches').textContent='0';
+  document.getElementById('fish-catch-reveal').classList.add('hide');
   const fishingSkill = partyStat('fishing');
   fishZoneWidth = 18 + fishingSkill*2;
   nextFishRound();
@@ -1812,18 +2007,415 @@ function reelFish(){
   document.getElementById('fish-reel-btn').disabled=true;
   cancelAnimationFrame(fishAnim);
   const inZone = fishPos>=fishZoneStart && fishPos<=fishZoneStart+fishZoneWidth;
-  if(inZone) fishCatches++;
+  const reveal = document.getElementById('fish-catch-reveal');
+  if(inZone){
+    fishCatches++;
+    const fishingSkill = partyStat('fishing');
+    const species = FISH_SPECIES[Math.floor(Math.random()*FISH_SPECIES.length)];
+    let weight = species.minLb + Math.random()*(species.maxLb-species.minLb);
+    weight *= (1 + fishingSkill*0.015);
+    weight = Math.round(weight*10)/10;
+    fishCatchLog.push({name:species.name, weight});
+    reveal.textContent = `🐟 ${species.name} — ${weight.toFixed(1)} lb!`;
+    reveal.classList.remove('hide');
+  } else {
+    reveal.textContent = `It got away.`;
+    reveal.classList.remove('hide');
+  }
   document.getElementById('fish-catches').textContent = fishCatches;
-  setTimeout(nextFishRound, 500);
+  setTimeout(nextFishRound, 700);
 }
 function endFishing(){
   document.getElementById('modal-fish').classList.add('hide');
   state.sceneMode='trail';
   const fishingSkill = partyStat('fishing');
-  const gain = Math.round(fishCatches*16 + fishingSkill*3);
+  const totalWeight = fishCatchLog.reduce((s,f)=>s+f.weight,0);
+  const gain = Math.round(totalWeight*5 + fishingSkill*3);
   state.food += gain;
-  logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 catches (+${gain} food, Fishing ${fishingSkill.toFixed(1)}).`, 'good');
+  const summary = fishCatchLog.length ? fishCatchLog.map(f=>`${f.name} ${f.weight.toFixed(1)}lb`).join(', ') : 'nothing worth keeping';
+  logMsg(`${pendingLandmark.name}: landed ${fishCatches}/5 casts — ${summary} (${totalWeight.toFixed(1)}lb total, +${gain} food, Fishing ${fishingSkill.toFixed(1)}).`, 'good');
   if(fishCatches>0) completeQuest('quest_minigame_done', 20);
+  renderTrail();
+}
+
+/* ============================================================
+   RIVER CHOICE — every river landmark now offers a real decision
+   instead of dropping straight into fishing: ford it yourself
+   (Rafting minigame), fish the banks (Fishing minigame, no
+   crossing risk), or pay a guide for a guaranteed safe crossing.
+   ============================================================ */
+const RIVER_GUIDE_COST = 25;
+let currentRiverStats = null;
+function generateRiverStats(lm){
+  const frac = lm.mile/TRAIL_GOAL;
+  const depthFt = Math.round((2 + frac*4 + Math.random()*2)*10)/10;
+  const widthYd = Math.round(40 + frac*80 + Math.random()*40);
+  const currentScore = depthFt*0.5 + widthYd*0.05 + Math.random()*2;
+  let currentLabel, currentMult;
+  if(currentScore<6){ currentLabel='Calm'; currentMult=0.8; }
+  else if(currentScore<9){ currentLabel='Moderate'; currentMult=1.0; }
+  else if(currentScore<12){ currentLabel='Swift'; currentMult=1.25; }
+  else { currentLabel='Raging'; currentMult=1.5; }
+  return {depthFt, widthYd, currentLabel, currentMult};
+}
+function openRiverChoice(lm){
+  currentRiverStats = generateRiverStats(lm);
+  document.getElementById('river-title').innerHTML = `<img class="pixel" src="${SPRITE_URLS.FISH}" width="20" height="20"> ${lm.name}`;
+  document.getElementById('river-desc').textContent = "You size up the crossing before committing. Ford it yourself, fish the banks, or pay a local guide for safe passage.";
+  document.getElementById('river-stats').innerHTML = `
+    <div class="stat-box"><div class="label">Depth</div><div class="value">${currentRiverStats.depthFt} ft</div></div>
+    <div class="stat-box"><div class="label">Width</div><div class="value">${currentRiverStats.widthYd} yd</div></div>
+    <div class="stat-box"><div class="label">Current</div><div class="value">${currentRiverStats.currentLabel}</div></div>
+  `;
+  document.getElementById('river-options').innerHTML = `
+    <div class="fork-card" onclick="chooseRiverFord()"><h4>Ford the River</h4><div class="muted">Raft across and dodge the current — Rafting skill sets how much of a beating the raft can take.</div></div>
+    <div class="fork-card" onclick="chooseRiverFish()"><h4>Fish the Banks</h4><div class="muted">Skip the crossing risk and just fish — safe, and still worth food.</div></div>
+    <div class="fork-card" onclick="chooseRiverGuide()"><h4>Pay a Guide (${RIVER_GUIDE_COST} \u039e)</h4><div class="muted">Guaranteed safe crossing, no risk, no minigame.</div></div>
+  `;
+  document.getElementById('modal-river').classList.remove('hide');
+}
+function chooseRiverFord(){
+  document.getElementById('modal-river').classList.add('hide');
+  openRafting(pendingLandmark);
+}
+function chooseRiverFish(){
+  document.getElementById('modal-river').classList.add('hide');
+  openFishing(pendingLandmark);
+}
+function chooseRiverGuide(){
+  document.getElementById('modal-river').classList.add('hide');
+  if(state.cash>=RIVER_GUIDE_COST){
+    state.cash -= RIVER_GUIDE_COST;
+    logMsg(`${pendingLandmark.name}: paid a guide for safe passage (-${RIVER_GUIDE_COST} \u039e).`, 'good');
+  } else {
+    logMsg(`${pendingLandmark.name}: couldn't afford a guide — forded alone and got lucky, no damage taken.`, 'good');
+  }
+  state.sceneMode='trail';
+  renderTrail();
+}
+
+/* ============================================================
+   RIVER CROSSING MINIGAME — slide the raft to dodge rocks and
+   drifting logs. Rafting skill sets your starting raft integrity
+   (a damage buffer) and slightly thins out how often hazards
+   spawn, rather than making each hit less likely to land.
+   ============================================================ */
+let raftCtx, raftActive=false, raftObstacles=[], raftHealth=100, raftMaxHealth=100, raftTimeLeft=10;
+let raftTimerId=null, raftSpawnId=null, raftAnimId=null, raftX=200, raftW=44;
+function openRafting(lm){
+  document.getElementById('raft-icon').src = SPRITE_URLS.FISH;
+  const currentNote = currentRiverStats ? ` — ${currentRiverStats.currentLabel} current` : '';
+  document.getElementById('raft-title').textContent = lm.name + " — Fording the River" + currentNote;
+  document.getElementById('modal-raft').classList.remove('hide');
+  const rafting = partyStat('rafting');
+  raftMaxHealth = Math.min(100, 30 + rafting*7);
+  raftHealth = raftMaxHealth;
+  raftObstacles = []; raftTimeLeft = 10;
+  const canvas = document.getElementById('raftCanvas');
+  raftX = canvas.width/2;
+  raftCtx = canvas.getContext('2d');
+  canvas.onmousemove = handleRaftMove;
+  canvas.ontouchmove = handleRaftMove;
+  updateRaftHealthUI();
+  drawRaft();
+  document.getElementById('raft-start-btn').disabled = false;
+  document.getElementById('raft-start-btn').textContent = 'Push Off';
+}
+function handleRaftMove(e){
+  const canvas = document.getElementById('raftCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const x = (clientX-rect.left) * (canvas.width/rect.width);
+  raftX = Math.max(raftW/2, Math.min(canvas.width-raftW/2, x));
+  if(e.touches) e.preventDefault();
+}
+function updateRaftHealthUI(){
+  const pct = Math.max(0, Math.round(raftHealth/raftMaxHealth*100));
+  document.getElementById('raft-health-bar').style.width = pct+'%';
+  document.getElementById('raft-health-bar').classList.toggle('low', pct<35);
+  document.getElementById('raft-health-label').textContent = pct+'%';
+}
+function startRafting(){
+  document.getElementById('raft-start-btn').disabled = true;
+  raftActive = true;
+  const rafting = partyStat('rafting');
+  const currentMult = currentRiverStats ? currentRiverStats.currentMult : 1.0;
+  const spawnRate = Math.max(350, (850 - rafting*25) / currentMult);
+  raftSpawnId = setInterval(spawnRaftObstacle, spawnRate);
+  raftTimerId = setInterval(function(){
+    raftTimeLeft--;
+    if(raftTimeLeft<=0) endRafting();
+  }, 1000);
+  raftLoop();
+}
+function spawnRaftObstacle(){
+  const canvas = document.getElementById('raftCanvas');
+  const currentMult = currentRiverStats ? currentRiverStats.currentMult : 1.0;
+  const kind = Math.random()<0.5 ? 'rock' : 'log';
+  raftObstacles.push({kind, x:20+Math.random()*(canvas.width-40), y:-16, speed:(2+Math.random()*1.6)*currentMult, drift:(Math.random()-0.5)*1.2*currentMult});
+}
+function raftLoop(){
+  if(!raftActive) return;
+  const canvas = document.getElementById('raftCanvas');
+  const raftY = canvas.height-26;
+  for(let i=raftObstacles.length-1;i>=0;i--){
+    const o = raftObstacles[i];
+    o.y += o.speed; o.x += o.drift;
+    if(o.y>=raftY-10 && o.y<=raftY+12 && Math.abs(o.x-raftX)<raftW/2+10){
+      raftObstacles.splice(i,1);
+      raftHealth = Math.max(0, raftHealth-(12+Math.random()*10));
+      updateRaftHealthUI();
+      if(raftHealth<=0){ endRafting(); return; }
+      continue;
+    }
+    if(o.y>canvas.height+20) raftObstacles.splice(i,1);
+  }
+  drawRaft();
+  raftAnimId = requestAnimationFrame(raftLoop);
+}
+function drawRaft(){
+  const canvas = document.getElementById('raftCanvas');
+  raftCtx.fillStyle = '#7fb8c9'; raftCtx.fillRect(0,0,canvas.width,canvas.height);
+  raftCtx.strokeStyle = 'rgba(255,255,255,.35)'; raftCtx.lineWidth = 2;
+  const now = Date.now();
+  for(let i=0;i<5;i++){
+    const y = (now*0.05+i*50)%canvas.height;
+    raftCtx.beginPath(); raftCtx.moveTo(0,y); raftCtx.lineTo(canvas.width,y); raftCtx.stroke();
+  }
+  raftObstacles.forEach(function(o){
+    const def = o.kind==='rock' ? {rows:ROCK_ROWS,pal:ROCK_PAL} : {rows:LOG_ROWS,pal:LOG_PAL};
+    drawSpriteCentered(raftCtx, def.rows, def.pal, o.x, o.y, 4);
+  });
+  drawSpriteCentered(raftCtx, RAFT_ROWS, RAFT_PAL, raftX, canvas.height-26, 4);
+}
+function endRafting(){
+  raftActive = false; clearInterval(raftSpawnId); clearInterval(raftTimerId); cancelAnimationFrame(raftAnimId);
+  document.getElementById('modal-raft').classList.add('hide');
+  state.sceneMode = 'trail';
+  const damageTaken = raftMaxHealth - raftHealth;
+  const capsized = raftHealth<=0;
+  const dmg = capsized ? 14 : Math.round((damageTaken/raftMaxHealth)*8);
+  if(dmg>0){
+    applyHealth(-dmg, capsized
+      ? `${pendingLandmark.name}: the raft capsized in the current!`
+      : `${pendingLandmark.name}: forded the river, a little banged up (raft integrity ${Math.max(0,Math.round(raftHealth/raftMaxHealth*100))}%).`);
+  } else {
+    logMsg(`${pendingLandmark.name}: forded the river clean, no damage taken.`, 'good');
+  }
+  renderTrail();
+}
+
+/* ============================================================
+   GENERIC DECISION CARD — a reusable "pick your approach" modal.
+   Repair and healthcare aren't arcade minigames; they're judgment
+   calls with skill-scaled odds, so they share this one system.
+   ============================================================ */
+let _activeDecision = null;
+function openDecision(cfg){
+  document.getElementById('decision-title').innerHTML = cfg.icon ? `<img class="pixel" src="${cfg.icon}" width="20" height="20"> ${cfg.title}` : cfg.title;
+  document.getElementById('decision-desc').textContent = cfg.desc;
+  document.getElementById('decision-options').innerHTML = cfg.options.map(function(o,i){
+    const disabledStyle = o.disabled ? 'opacity:.45; pointer-events:none;' : '';
+    return `<div class="fork-card" style="${disabledStyle}" onclick="chooseDecision(${i})"><h4>${o.label}</h4><div class="muted">${o.detail}</div></div>`;
+  }).join('');
+  _activeDecision = cfg;
+  document.getElementById('modal-decision').classList.remove('hide');
+}
+function chooseDecision(i){
+  const opt = _activeDecision.options[i];
+  if(opt.disabled) return;
+  document.getElementById('modal-decision').classList.add('hide');
+  opt.apply();
+}
+
+/* ---- Tinkering: wagon trouble ---- */
+function triggerWagonTrouble(){
+  const tinkering = partyStat('tinkering');
+  openDecision({
+    title: "Axle Trouble",
+    icon: SPRITE_URLS.WRENCH,
+    desc: "Something's cracked underneath the wagon. Pick your fix.",
+    options: [
+      {label: state.parts>0 ? "Patch with a Spare Part" : "Patch with a Spare Part (no parts left)",
+       detail: `Uses 1 spare part. Best odds of a clean fix. Tinkering ${tinkering.toFixed(1)}.`,
+       disabled: state.parts<=0,
+       apply: ()=>resolveRepair('part', tinkering)},
+      {label: "Jury-Rig It",
+       detail: `Free, but you'll lose some miles either way. Tinkering ${tinkering.toFixed(1)}.`,
+       apply: ()=>resolveRepair('juryrig', tinkering)},
+      {label: "Push On and Hope",
+       detail: "No fix attempted — risky, but costs nothing and loses no time if you get lucky.",
+       apply: ()=>resolveRepair('pushon', tinkering)},
+    ]
+  });
+}
+function resolveRepair(method, tinkering){
+  if(method==='part'){
+    state.parts--;
+    const successChance = Math.min(0.95, 0.55+tinkering*0.05);
+    if(Math.random()<successChance){
+      logMsg(`Axle trouble: patched clean with a spare part (Tinkering ${tinkering.toFixed(1)}).`, 'good');
+    } else {
+      applyHealth(-4, `Axle trouble: the patch didn't quite hold, a rough stretch follows.`);
+    }
+  } else if(method==='juryrig'){
+    const successChance = Math.min(0.85, 0.3+tinkering*0.05);
+    state.distance = Math.max(0, state.distance-8);
+    if(Math.random()<successChance){
+      logMsg(`Axle trouble: jury-rigged it well enough to keep moving (Tinkering ${tinkering.toFixed(1)}, -8mi).`, 'good');
+    } else {
+      applyHealth(-6, `Axle trouble: the jury-rig barely held together (-8mi).`);
+    }
+  } else {
+    if(Math.random()<0.35){
+      logMsg("Axle trouble: pushed on and got lucky — no damage, no delay.", 'good');
+    } else {
+      applyHealth(-9, "Axle trouble: pushing on without a fix costs the party.");
+      state.distance = Math.max(0, state.distance-8);
+    }
+  }
+  checkEndConditions();
+  renderTrail();
+}
+
+/* ---- Medicine: sickness in camp ---- */
+function triggerSickness(){
+  const medicine = partyStat('medicine'), resist = partyStat('resist');
+  openDecision({
+    title: "Sickness in the Camp",
+    icon: SPRITE_URLS.MEDKIT,
+    desc: "Someone's come down with a fever. Decide how to treat it.",
+    options: [
+      {label: "Treat with Medicine",
+       detail: `Best odds of a clean recovery. Medicine ${medicine.toFixed(1)}.`,
+       apply: ()=>resolveSickness('treat', medicine, resist)},
+      {label: "Rest and Wait It Out",
+       detail: `No treatment attempt, just time — safer than pushing on. Resist ${resist.toFixed(1)}.`,
+       apply: ()=>resolveSickness('rest', medicine, resist)},
+      {label: "Push Through It",
+       detail: "Keep traveling and hope it passes — risky, but doesn't slow anyone down.",
+       apply: ()=>resolveSickness('push', medicine, resist)},
+    ]
+  });
+}
+function resolveSickness(method, medicine, resist){
+  if(method==='treat'){
+    const successChance = Math.min(0.92, 0.45+medicine*0.06);
+    if(Math.random()<successChance){
+      logMsg(`Sickness in the camp: treated in time, no lasting harm (Medicine ${medicine.toFixed(1)}).`, 'good');
+    } else {
+      const dmg = Math.max(2, Math.round(6-medicine*0.3-resist*0.2));
+      applyHealth(-dmg, `Sickness in the camp: treatment helped some, but it still took a toll.`);
+    }
+  } else if(method==='rest'){
+    const dmg = Math.max(1, Math.round(5-resist*0.4));
+    applyHealth(-dmg, `Sickness in the camp: resting it out took some strength (Resist ${resist.toFixed(1)}).`);
+  } else {
+    const dmg = Math.max(3, Math.round(9-resist*0.3));
+    applyHealth(-dmg, `Sickness in the camp: pushing through took a real toll (Resist ${resist.toFixed(1)}).`);
+  }
+  checkEndConditions();
+  renderTrail();
+}
+
+/* ============================================================
+   FORAGING MINIGAME — catch falling fruit in a basket that slides
+   with the mouse/finger. Scavenging widens the basket AND boosts
+   the value of every catch; thorns cost a little food, not a fail
+   state. Only reachable via a fertile zone (see forageAttempt()).
+   ============================================================ */
+let forageCtx, forageActive=false, forageItems=[], forageCatches=0, forageThorns=0;
+let forageTimeLeft=10, forageTimerId=null, forageSpawnId=null, forageAnimId=null;
+let forageBucketX=200, forageBucketW=60, forageZone=null;
+const FORAGE_KINDS = {apple:{rows:APPLE_ROWS,pal:APPLE_PAL}, berry:{rows:BERRY_ROWS,pal:BERRY_PAL}, thorn:{rows:THORN_ROWS,pal:THORN_PAL}};
+
+function openForageGame(zone){
+  forageZone = zone;
+  document.getElementById('forage-icon').src = SPRITE_URLS.BASKET;
+  document.getElementById('forage-title').textContent = zone.name + " — Foraging";
+  document.getElementById('modal-forage').classList.remove('hide');
+  forageCatches=0; forageThorns=0; forageItems=[]; forageTimeLeft=10;
+  document.getElementById('forage-catches').textContent='0';
+  document.getElementById('forage-thorns').textContent='0';
+  document.getElementById('forage-timer').textContent='10';
+  document.getElementById('forage-start-btn').textContent='Start Foraging';
+  document.getElementById('forage-start-btn').disabled=false;
+  const scavenging = partyStat('scavenging');
+  forageBucketW = 44 + scavenging*3;
+  const canvas = document.getElementById('forageCanvas');
+  forageCtx = canvas.getContext('2d');
+  forageBucketX = canvas.width/2;
+  canvas.onmousemove = handleForageMove;
+  canvas.ontouchmove = handleForageMove;
+  drawForage();
+}
+function handleForageMove(e){
+  const canvas = document.getElementById('forageCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const x = (clientX-rect.left) * (canvas.width/rect.width);
+  forageBucketX = Math.max(forageBucketW/2, Math.min(canvas.width-forageBucketW/2, x));
+  if(e.touches) e.preventDefault();
+}
+function startForage(){
+  document.getElementById('forage-start-btn').disabled = true;
+  forageActive = true;
+  forageSpawnId = setInterval(spawnForageItem, 550);
+  forageTimerId = setInterval(function(){
+    forageTimeLeft--; document.getElementById('forage-timer').textContent = forageTimeLeft;
+    if(forageTimeLeft<=0) endForage();
+  }, 1000);
+  forageLoop();
+}
+function spawnForageItem(){
+  const canvas = document.getElementById('forageCanvas');
+  const roll = Math.random();
+  const kind = roll<0.15 ? 'thorn' : (roll<0.55 ? 'berry' : 'apple');
+  forageItems.push({x:20+Math.random()*(canvas.width-40), y:-10, kind, speed:1.4+Math.random()*1.2});
+}
+function forageLoop(){
+  if(!forageActive) return;
+  const canvas = document.getElementById('forageCanvas');
+  const bucketY = canvas.height-22;
+  forageItems.forEach(it=> it.y += it.speed);
+  for(let i=forageItems.length-1;i>=0;i--){
+    const it = forageItems[i];
+    if(it.y>=bucketY-8 && it.y<=bucketY+10 && Math.abs(it.x-forageBucketX)<forageBucketW/2){
+      forageItems.splice(i,1);
+      if(it.kind==='thorn'){ forageThorns++; document.getElementById('forage-thorns').textContent=forageThorns; }
+      else { forageCatches++; document.getElementById('forage-catches').textContent=forageCatches; }
+      continue;
+    }
+    if(it.y>canvas.height+10) forageItems.splice(i,1);
+  }
+  drawForage();
+  forageAnimId = requestAnimationFrame(forageLoop);
+}
+function drawForage(){
+  const canvas = document.getElementById('forageCanvas');
+  forageCtx.fillStyle = '#dff0c8'; forageCtx.fillRect(0,0,canvas.width,canvas.height);
+  forageItems.forEach(it=>{
+    const def = FORAGE_KINDS[it.kind];
+    drawSpriteCentered(forageCtx, def.rows, def.pal, it.x, it.y, 4);
+  });
+  const by = canvas.height-22;
+  forageCtx.fillStyle = '#7a4a2b';
+  forageCtx.fillRect(forageBucketX-forageBucketW/2, by, forageBucketW, 14);
+  forageCtx.fillStyle = '#5b3a29';
+  forageCtx.fillRect(forageBucketX-forageBucketW/2, by, forageBucketW, 3);
+}
+function endForage(){
+  forageActive=false; clearInterval(forageSpawnId); clearInterval(forageTimerId);
+  cancelAnimationFrame(forageAnimId);
+  document.getElementById('modal-forage').classList.add('hide');
+  state.sceneMode='trail';
+  const scavenging = partyStat('scavenging');
+  const valueMult = 1 + scavenging*0.08;
+  const gain = Math.max(0, Math.round(forageCatches*7*valueMult - forageThorns*4));
+  state.food += gain;
+  state.foragedZones.add(forageZone.name);
+  logMsg(`${forageZone.name}: foraged ${forageCatches} catches, ${forageThorns} thorns (+${gain} food, Scavenging ${scavenging.toFixed(1)}).`, gain>0?'good':'bad');
+  if(forageCatches>0) completeQuest('quest_minigame_done', 20);
   renderTrail();
 }
 
