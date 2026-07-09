@@ -164,7 +164,7 @@
       <span class="eyebrow">DOLO x Green Acres Presents</span>
       <h1>WAGMI TRAIL</h1>
       <span class="glow">a metaverse crossing // acre.exe launched</span>
-      <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across 2,000 chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, haggle at the towns along the way, and put your score on the leaderboard.</p>
+      <p class="lore">Four settlers, one wagon, one deed that has to make it. Guide your Green Acres party from the Genesis Homestead across the chain miles of prairie, river, and rug pulled ravine to reach Diamond Acres before your food, your cash, or your nerve runs out. Outfit the wagon, pick your route, haggle at the towns along the way, and put your score on the leaderboard.</p>
       <button class="btn chain" onclick="goToLogin()">Assemble Your Party →</button>
       <div style="margin-top:16px;"><a href="https://x.com/dolodood" target="_blank" rel="noopener noreferrer" style="color:var(--chain-cyan-dim); font-size:12px; text-decoration:none; letter-spacing:.05em;">Follow @dolodood on X →</a></div>
     </div>
@@ -264,7 +264,7 @@
       <canvas id="travelScene" width="640" height="90"></canvas>
       <div class="trailmap" id="trailmap"></div>
       <div class="resource-strip">
-        <div class="resource-chip"><span class="label">Distance</span><span class="value"><span id="stat-distance">0</span>/2000mi</span></div>
+        <div class="resource-chip"><span class="label">Distance</span><span class="value"><span id="stat-distance">0</span>/<span id="stat-goal">2000</span>mi</span></div>
         <div class="resource-chip"><span class="label">Food</span><span class="value" id="stat-food">0</span></div>
         <div class="resource-chip"><span class="label">Cash</span><span class="value" id="stat-cash">0</span><span class="label">Ξ</span></div>
         <div class="resource-chip"><span class="label">Ammo</span><span class="value" id="stat-ammo">0</span></div>
@@ -789,7 +789,7 @@ FREE_ROSTER.forEach((m,i)=>{ m.pfp = makePfp(m,i); m.walk = makeWalkFrames(m,i);
    ============================================================ */
 const TRAIL_ROUTES = [
   {
-    key:'green_acres', label:'The Green Acres Trail', cost:0,
+    key:'green_acres', label:'The Green Acres Trail', cost:0, scoreMult:1.0,
     desc:'The original run. 2,000 miles, a balanced mix of rivers, towns, and hazards.',
     goalMiles:2000,
     landmarks:[
@@ -823,7 +823,7 @@ const TRAIL_ROUTES = [
     ],
   },
   {
-    key:'northern_cutoff', label:'The Northern Cutoff', cost:300,
+    key:'northern_cutoff', label:'The Northern Cutoff', cost:300, scoreMult:1.2,
     desc:'Shorter and meaner. 1,500 miles, only one town, and hazards at almost every turn.',
     goalMiles:1500,
     landmarks:[
@@ -848,7 +848,7 @@ const TRAIL_ROUTES = [
     ],
   },
   {
-    key:'old_coast_road', label:'The Old Coast Road', cost:450,
+    key:'old_coast_road', label:'The Old Coast Road', cost:450, scoreMult:0.9,
     desc:'Longer and gentler. 2,400 miles hugging the coastline — heavy on rivers and towns, light on hazards.',
     goalMiles:2400,
     landmarks:[
@@ -1169,6 +1169,32 @@ function computeMemberFromAttributes(tokenId, meta, idx){
   return member;
 }
 
+// Generates a full companion using the same trait buckets and stat math
+// as a real NFT, just with randomly-picked trait values instead of ones
+// read from wallet metadata. Used to pad a wallet's roster up to a full
+// party when someone owns fewer than 4 Green Acres tokens.
+const RANDOM_CHAR_ADJ = ["Wandering","Restless","Weathered","Plucky","Grizzled","Hopeful","Stubborn","Quiet","Scrappy","Steady","Sunburnt","Dust-Worn"];
+const RANDOM_CHAR_NOUN = ["Drifter","Traveler","Homesteader","Settler","Wayfarer","Newcomer","Prospector","Rover","Pilgrim","Outrider","Hand","Greenhorn"];
+function generateRandomCharacter(idx){
+  const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+  const fakeMeta = {
+    name: `${pick(RANDOM_CHAR_ADJ)} ${pick(RANDOM_CHAR_NOUN)}`,
+    attributes: [
+      {trait_type:'Body',       value: pick(Object.keys(BODY_MAP))},
+      {trait_type:'Hand Item',  value: pick(Object.keys(HAND_MAP))},
+      {trait_type:'Head',       value: pick(Object.keys(HEAD_MAP))},
+      {trait_type:'Eyes',       value: pick(Object.keys(EYES_MAP))},
+      {trait_type:'Face',       value: pick(Object.keys(FACE_MAP))},
+      {trait_type:'Background', value: pick(Object.keys(BG_MAP))},
+      {trait_type:'Gender',     value: pick(Object.keys(GENDER_COUNTS))},
+    ],
+  };
+  const member = computeMemberFromAttributes('RND'+Math.floor(1000+Math.random()*9000), fakeMeta, idx);
+  member.generated = true;
+  member.id = 'Generated';
+  return member;
+}
+
 function loadEthers(){
   if(window.ethers) return Promise.resolve();
   return new Promise((resolve,reject)=>{
@@ -1228,10 +1254,17 @@ async function connectWallet(){
       btn.disabled=false; btn.textContent="Connect Wallet"; return;
     }
     fetched.sort((a,b)=> b.mult - a.mult || a.id.localeCompare(b.id));
+    let generatedNote = '';
+    if(fetched.length<4){
+      const realCount = fetched.length;
+      const padCount = (4-realCount)+2; // pad past the bare minimum so there's still some real choice
+      for(let g=0; g<padCount; g++) fetched.push(generateRandomCharacter(realCount+g));
+      generatedNote = ` You own ${realCount} — padded with ${padCount} randomly generated companions (clearly marked) so you can still fill a full party.`;
+    }
     WALLET_ROSTER = fetched; usingWallet = true;
     selected = []; leaderIdx = null;
     const cappedNote = ids.length>100 ? ` (showing the first 100 of ${ids.length} held)` : '';
-    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Rarity is computed from the collection's real published trait-frequency counts across all 7 categories, and true 1-of-1s are recognized by name.`;
+    statusEl.textContent = `Connected ${address.slice(0,6)}…${address.slice(-4)} — loaded ${fetched.length} real Green Acres NFT${fetched.length>1?'s':''}${cappedNote}. Rarity is computed from the collection's real published trait-frequency counts across all 7 categories, and true 1-of-1s are recognized by name.${generatedNote}`;
     renderRoster();
   }catch(err){
     console.error(err);
@@ -1511,8 +1544,11 @@ function renderRoster(){
     const plus = {Common:"", Uncommon:"+", Rare:"++", Epic:"+++", Legendary:"++++"}[m.rarity] || "";
     const imgSrc = m.image || m.pfp;
     const pixelCls = m.image ? "" : "pixel";
+    const tag = m.generated
+      ? `<span class="tag">🎲 Generated</span>`
+      : `<span class="tag ${m.rarity==='Legendary'?'legendary':(m.rarity==='Rare'||m.rarity==='Epic'?'rare':'')}">${m.rarity}${plus}</span>`;
     return `<div class="card" id="card-${i}" onclick="toggleSelect(${i})">
-      <span class="tag ${m.rarity==='Legendary'?'legendary':(m.rarity==='Rare'||m.rarity==='Epic'?'rare':'')}">${m.rarity}${plus}</span>
+      ${tag}
       <div><img class="pfp ${pixelCls}" src="${imgSrc}" alt="${m.name}"></div>
       <h4>${m.name}</h4>
       <div class="muted" style="font-size:10px;">${m.id} · ${m.biome}${m.rarityScore?` · score ${m.rarityScore}`:''}</div>
@@ -1702,7 +1738,7 @@ function departTrail(){
   SPRITE_URLS.WAGON = spriteToDataURL(WAGON_ROWS, currentWagonPalette(), 4);
 
   state = {
-    day:1, distance:0,
+    day:1, distance:0, routeInfo: route,
     food: 100 + perkFoodBonus() + outfitPurchases.food*50,
     cash: outfitBudget - cost,
     ammo: 40 + outfitPurchases.ammo*20,
@@ -1884,6 +1920,7 @@ function renderTrail(){
   document.getElementById('stat-day').textContent = state.day;
   document.getElementById('stat-multiplier').textContent = '×'+state.leaderMultiplier;
   document.getElementById('stat-distance').textContent = Math.floor(state.distance);
+  document.getElementById('stat-goal').textContent = TRAIL_GOAL.toLocaleString();
   document.getElementById('stat-food').textContent = Math.max(0,Math.floor(state.food));
   document.getElementById('stat-cash').textContent = Math.max(0,Math.floor(state.cash));
   document.getElementById('stat-ammo').textContent = Math.max(0,state.ammo);
@@ -3063,14 +3100,19 @@ function endRun(success){
   const survivors = state.members.filter(m=>m.alive);
   const healthSum = survivors.reduce((s,m)=>s+m.health,0);
   const stackMult = 1 + Math.min(state.stackBonus,3)*0.05;
-  const distancePts = Math.floor(Math.min(state.distance,TRAIL_GOAL) * 2);
+  const routeMult = (state.routeInfo && state.routeInfo.scoreMult) || 1.0;
+  // Distance points are normalized to % of THIS route's length, not raw
+  // miles — otherwise a longer route always outscores a shorter one on
+  // distance alone regardless of difficulty. Route difficulty is instead
+  // rewarded explicitly via routeMult (harder/shorter routes score higher).
+  const distancePts = Math.floor((Math.min(state.distance,TRAIL_GOAL)/TRAIL_GOAL) * 4000);
   const timePts = success ? Math.max(0, Math.round((160-state.day)*3)) : 0;
   const foodPts = Math.floor(state.food);
   const cashPts = Math.floor(state.cash);
   const healthPts = Math.floor(healthSum*3);
   const survivorPts = survivors.length*150;
   const subtotal = distancePts+timePts+foodPts+cashPts+healthPts+survivorPts;
-  const total = Math.round(subtotal * state.leaderMultiplier * stackMult);
+  const total = Math.round(subtotal * state.leaderMultiplier * stackMult * routeMult);
 
   document.getElementById('end-eyebrow').textContent = success ? "Journey Complete" : "Journey Ended Early";
   document.getElementById('end-title').textContent = success ? `You reached Diamond Acres with ${survivors.length}/4 survivors` : `The party was lost ${Math.floor(state.distance)}mi from Diamond Acres`;
@@ -3084,6 +3126,7 @@ function endRun(success){
     <div class="stat-box"><div class="label">Survivor Bonus</div><div class="value">${survivorPts}</div><div class="muted" style="font-size:9.5px;">${survivors.length} survived × 150</div></div>
     <div class="stat-box"><div class="label">Leader ×</div><div class="value">×${state.leaderMultiplier}</div></div>
     <div class="stat-box"><div class="label">Biome Stack ×</div><div class="value">×${stackMult.toFixed(2)}</div></div>
+    <div class="stat-box"><div class="label">Route ×</div><div class="value">×${routeMult.toFixed(2)}</div><div class="muted" style="font-size:9.5px;">${state.routeInfo ? state.routeInfo.label : ''}</div></div>
   `;
   window._lastScore = total;
   window._lastLeaderClass = state.leaderClass;
