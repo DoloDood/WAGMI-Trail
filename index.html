@@ -137,7 +137,12 @@
 
   .modal-bg{position:fixed; inset:0; background:rgba(10,15,10,.75); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px;}
   .modal{background:var(--parchment); color:var(--ink); border-radius:8px; padding:20px; max-width:520px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.5); max-height:88vh; overflow-y:auto;}
+  .modal.modal-wide{max-width:640px;}
   .modal h3{display:flex; align-items:center; gap:8px;}
+  .arrival-canvas{width:100%; height:auto; display:block; border-radius:5px; image-rendering:pixelated; image-rendering:crisp-edges; box-shadow:0 4px 18px rgba(0,0,0,.25);}
+  .arrival-caption{background:#fffdf6; border:1.5px solid rgba(43,35,24,.25); border-radius:6px; padding:10px 16px; margin-top:-14px; position:relative; text-align:center; width:88%; margin-left:auto; margin-right:auto; box-shadow:0 4px 10px rgba(0,0,0,.15);}
+  .arrival-name{font-family:'Fraunces',serif; font-weight:700; font-size:17px;}
+  .arrival-date{font-size:11px; color:#6a5d44; margin-top:2px;}
   #huntCanvas{background:#cfe0b8; border-radius:6px; display:block; margin:10px auto; cursor:crosshair; touch-action:none;}
   .fish-track{position:relative; height:34px; background:#bcd7e8; border-radius:17px; margin:16px 0; overflow:hidden; border:2px solid #7fa6c2;}
   .fish-zone{position:absolute; top:0; bottom:0; background:rgba(95,143,78,.55); border-left:2px dashed #2f5233; border-right:2px dashed #2f5233;}
@@ -293,7 +298,7 @@
     <div class="panel">
       <div class="row between">
         <div><span class="eyebrow" id="trail-route-name">Leader Class</span><h2 id="trail-leader-name">—</h2></div>
-        <div class="muted" style="text-align:right;">Day <span id="stat-day">1</span> · <span id="stat-season">Spring</span><br><span id="stat-multiplier">×1</span> score multiplier</div>
+        <div class="muted" style="text-align:right;"><span id="stat-date">March 1, 1848</span> · Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier · <span id="stat-season">Spring</span></div>
       </div>
       <div class="party-strip" id="party-strip"></div>
       <canvas id="travelScene" width="640" height="90"></canvas>
@@ -429,6 +434,19 @@
       <h3 id="decision-title"></h3>
       <p class="muted" id="decision-desc"></p>
       <div class="fork-options" id="decision-options"></div>
+    </div>
+  </div>
+
+  <div id="modal-arrival" class="modal-bg hide">
+    <div class="modal modal-wide">
+      <canvas id="arrivalCanvas" width="600" height="260" class="arrival-canvas"></canvas>
+      <div class="arrival-caption">
+        <div class="arrival-name" id="arrival-name">Landmark</div>
+        <div class="arrival-date" id="arrival-date">March 1, 1848</div>
+      </div>
+      <div class="row" style="justify-content:center; margin-top:12px;">
+        <button class="btn" onclick="continueFromArrival()">Press to Continue →</button>
+      </div>
     </div>
   </div>
 
@@ -810,6 +828,22 @@ const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
    GAME DATA
    ============================================================ */
 let TRAIL_GOAL = 2000;
+
+// Departure is fixed at March 1, 1848 — a realistic early-season start
+// (per the trail's own history, leaving later risks the mountain passes).
+// state.day (1-indexed) maps onto a real calendar date for flavor, exactly
+// like the original's "Date: April 24, 1848" status readout.
+const TRAIL_START_DATE = new Date(1848, 2, 1);
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function trailDateFor(day){
+  const d = new Date(TRAIL_START_DATE.getTime());
+  d.setDate(d.getDate() + Math.max(0,(day||1)-1));
+  return d;
+}
+function formatTrailDate(day){
+  const d = trailDateFor(day);
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
 
 const FREE_ROSTER = [
   {id:"F1", name:"Ragged Farmhand", cls:"Laborer",      rarity:"Common", mult:1, biome:"Prairie",   hunting:2, scavenging:6, fishing:2, rafting:2, tinkering:2, medicine:2, leadership:3, resist:3},
@@ -2356,6 +2390,7 @@ function drawTravelScene(traveling, weary){
 function renderTrail(){
   document.getElementById('trail-leader-name').textContent = state.leaderClass;
   document.getElementById('stat-day').textContent = state.day;
+  document.getElementById('stat-date').textContent = formatTrailDate(state.day);
   updateTravelBtn();
   document.getElementById('stat-multiplier').textContent = '×'+state.leaderMultiplier;
   document.getElementById('stat-distance').textContent = Math.floor(state.distance);
@@ -2687,7 +2722,7 @@ function logMsg(text, cls){
    clock pauses itself whenever a decision modal is open, and
    resumes on its own once it's closed.
    ============================================================ */
-const MODAL_IDS = ['modal-town','modal-fork','modal-hunt','modal-fish','modal-forage','modal-river','modal-raft','modal-decision'];
+const MODAL_IDS = ['modal-town','modal-fork','modal-hunt','modal-fish','modal-forage','modal-river','modal-raft','modal-decision','modal-arrival'];
 function isAnyModalOpen(){
   return MODAL_IDS.some(id=>{ const el=document.getElementById(id); return el && !el.classList.contains('hide'); });
 }
@@ -2729,7 +2764,14 @@ function advanceOneDay(){
   state.day += 1;
 
   const enteredZone = FERTILE_ZONES.find(z=> z.start>prevDistance && z.start<=state.distance && !state.foragedZones.has(z.name));
-  if(enteredZone) logMsg(`Passing through ${enteredZone.name} — fertile ground nearby. Forage while you can.`, 'chain');
+  const enteredFishWindow = RIVER_LANDMARKS.find(lm=> (lm.mile-20)>prevDistance && (lm.mile-20)<=state.distance && !state.fishedRivers.has(lm.name));
+  let opportunityPause = false;
+  if(enteredZone){ logMsg(`Passing through ${enteredZone.name} — fertile ground nearby. Forage while you can.`, 'chain'); opportunityPause = true; }
+  if(enteredFishWindow){ logMsg(`${enteredFishWindow.name} is coming up — good fishing water nearby.`, 'chain'); opportunityPause = true; }
+  if(opportunityPause){
+    state.autoTravel = false;
+    logMsg(`The journey pauses here — Forage/Fish now, or hit ▶ Resume Journey to keep moving.`, 'good');
+  }
 
   const passedGraves = passedGravestonesThisStretch(prevDistance, state.distance);
   passedGraves.forEach(g=>{
@@ -2872,8 +2914,144 @@ function huntAnytime(){
 }
 
 let pendingLandmark = null;
+
+/* ============================================================
+   ARRIVAL SCENE — the "moment" beat the classic game gave every
+   river, town, and landmark: a full illustrated establishing shot
+   with a captioned date card before you're asked to decide anything.
+   Procedurally painted per landmark type, reusing our pixel sprites
+   as hero set-pieces rather than a static background photo.
+   ============================================================ */
+function paintSky(ctx,w,h,groundFrac,topColor,botColor){
+  const grad = ctx.createLinearGradient(0,0,0,h*groundFrac);
+  grad.addColorStop(0,topColor); grad.addColorStop(1,botColor);
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h*groundFrac);
+}
+function paintSun(ctx,x,y,r,color){
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+function paintCloud(ctx,x,y,scale,color){
+  ctx.fillStyle = color;
+  [[0,0,16],[14,-6,12],[26,0,14],[10,6,11]].forEach(([dx,dy,r])=>{
+    ctx.beginPath(); ctx.arc(x+dx*scale,y+dy*scale,r*scale,0,Math.PI*2); ctx.fill();
+  });
+}
+function paintRidge(ctx,w,h,baseY,amp,color){
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(0,baseY);
+  for(let x=0;x<=w;x+=20){ ctx.lineTo(x, baseY - amp - Math.sin(x*0.015)*amp*0.6 - Math.cos(x*0.04)*amp*0.3); }
+  ctx.lineTo(w,baseY+40); ctx.lineTo(0,baseY+40); ctx.closePath(); ctx.fill();
+}
+function paintTree(ctx,x,y,scale){
+  ctx.fillStyle = '#5b3a29'; ctx.fillRect(x-3*scale,y-2*scale,6*scale,22*scale);
+  ctx.fillStyle = '#3f7a3a';
+  [[0,-4,20],[-14,4,16],[14,4,16],[0,-22,17]].forEach(([dx,dy,r])=>{
+    ctx.beginPath(); ctx.arc(x+dx*scale,y+dy*scale,r*scale,0,Math.PI*2); ctx.fill();
+  });
+  ctx.fillStyle = 'rgba(120,190,110,.5)';
+  ctx.beginPath(); ctx.arc(x-6*scale,y-14*scale,7*scale,0,Math.PI*2); ctx.fill();
+}
+function paintArrivalScene(canvasId, lm){
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const groundFrac = 0.66;
+  const type = lm.type;
+
+  if(type==='river'){
+    paintSky(ctx,w,h,groundFrac,'#a9d4e6','#e3f3f6');
+    paintSun(ctx,80,60,26,'rgba(255,247,214,.9)');
+    paintCloud(ctx,140,50,1.3,'rgba(255,255,255,.85)'); paintCloud(ctx,420,40,1.6,'rgba(255,255,255,.8)'); paintCloud(ctx,550,75,1,'rgba(255,255,255,.75)');
+    paintRidge(ctx,w,h,h*groundFrac,50,'#b79bc9');
+    ctx.fillStyle = '#7aab5c'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    // winding river cutting across the banks
+    ctx.fillStyle = '#4fa0c9';
+    ctx.beginPath(); ctx.moveTo(0,h*0.74);
+    ctx.bezierCurveTo(w*0.3,h*0.68, w*0.4,h*0.9, w*0.68,h*0.82);
+    ctx.lineTo(w,h*0.9); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+    for(let i=0;i<3;i++){ ctx.beginPath();
+      for(let x=0;x<w;x+=10){ const yy = h*0.8 + Math.sin((x+i*40)*0.06)*4 + i*8; x===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); }
+      ctx.stroke(); }
+    paintTree(ctx, w*0.78, h*0.78, 2.6);
+    drawSpriteCentered(ctx, ICONS.FISH.rows, ICONS.FISH.pal, w*0.24, h*0.86, 3.5);
+  } else if(type==='town'){
+    paintSky(ctx,w,h,groundFrac,'#f2c98a','#fbe6bf');
+    paintSun(ctx,w-90,55,30,'rgba(255,241,196,.95)');
+    paintCloud(ctx,120,45,1.2,'rgba(255,255,255,.7)');
+    paintRidge(ctx,w,h,h*groundFrac,36,'#cdb08a');
+    ctx.fillStyle = '#c9a877'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    ctx.fillStyle = 'rgba(90,65,40,.35)'; ctx.fillRect(0,h*groundFrac+6,w,10); // dirt road
+    const buildX = [w*0.14, w*0.32, w*0.62, w*0.82];
+    buildX.forEach((bx,i)=> drawSpriteCentered(ctx, ICONS.STORE.rows, ICONS.STORE.pal, bx, h*groundFrac-24-(i%2)*6, 5.5+(i%2)*1.2));
+    drawSpriteCentered(ctx, WAGON_ROWS, currentWagonPalette(), w*0.48, h*groundFrac+22, 3.2);
+  } else if(type==='hazard'){
+    const flavor = {FUEL:{top:'#e8b06a',bot:'#f3d29c',ridge:'#b06a2f',dust:'rgba(217,119,47,.3)'}, RAVINE:{top:'#c99a7a',bot:'#e8c9a8',ridge:'#8a3a2e',dust:'rgba(138,58,46,.28)'}, GORGE:{top:'#9aa3ad',bot:'#c7ced4',ridge:'#4a5568',dust:'rgba(74,85,104,.28)'}}[lm.icon] || {top:'#b89a7c',bot:'#e0c9a8',ridge:'#5c4a38',dust:'rgba(90,70,50,.3)'};
+    paintSky(ctx,w,h,groundFrac,flavor.top,flavor.bot);
+    paintRidge(ctx,w,h,h*groundFrac,70,flavor.ridge);
+    ctx.fillStyle = flavor.ridge; ctx.globalAlpha=.6; paintRidge(ctx,w,h,h*groundFrac,40,flavor.ridge); ctx.globalAlpha=1;
+    ctx.fillStyle = '#8a7360'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    ctx.fillStyle = flavor.dust;
+    for(let i=0;i<9;i++){ ctx.beginPath(); ctx.arc((i*77+30)%w, h*groundFrac-10-((i*37)%40), 14, 0, Math.PI*2); ctx.fill(); }
+    drawSpriteCentered(ctx, ICONS[lm.icon].rows, ICONS[lm.icon].pal, w*0.5, h*0.42, 7);
+  } else if(type==='fork'){
+    paintSky(ctx,w,h,groundFrac,'#c9dfd0','#eef6e8');
+    paintSun(ctx,90,55,24,'rgba(255,247,214,.9)');
+    paintCloud(ctx,460,45,1.3,'rgba(255,255,255,.8)');
+    paintRidge(ctx,w,h,h*groundFrac,44,'#9fbf95');
+    ctx.fillStyle = '#7aab5c'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    ctx.fillStyle = 'rgba(160,130,90,.55)';
+    ctx.beginPath(); ctx.moveTo(w*0.5,h*groundFrac); ctx.lineTo(w*0.08,h); ctx.lineTo(w*0.22,h); ctx.lineTo(w*0.54,h*groundFrac); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(w*0.5,h*groundFrac); ctx.lineTo(w*0.78,h); ctx.lineTo(w*0.92,h); ctx.lineTo(w*0.54,h*groundFrac); ctx.closePath(); ctx.fill();
+    paintTree(ctx, w*0.14, h*0.8, 2);
+    paintTree(ctx, w*0.86, h*0.82, 2.2);
+    drawSpriteCentered(ctx, ICONS.SIGNPOST.rows, ICONS.SIGNPOST.pal, w*0.5, h*0.5, 6.5);
+  } else if(type==='legendary'){
+    paintSky(ctx,w,h,groundFrac,'#efe0a8','#fff3c4');
+    for(let i=0;i<16;i++){
+      const ang = (i/16)*Math.PI*2;
+      ctx.strokeStyle = 'rgba(255,224,140,.4)'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(w*0.5,h*0.4); ctx.lineTo(w*0.5+Math.cos(ang)*260, h*0.4+Math.sin(ang)*260); ctx.stroke();
+    }
+    paintRidge(ctx,w,h,h*groundFrac,40,'#c9a227');
+    ctx.fillStyle = '#d9c06a'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    for(let i=0;i<14;i++){
+      const gx = (i*53+20)%w, gy = h*0.3+((i*29)%(h*0.3));
+      ctx.fillStyle = 'rgba(255,240,180,.9)';
+      ctx.beginPath(); ctx.arc(gx,gy,2.4,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(120,90,20,.4)'; ctx.fillRect(w*0.5-30,h*groundFrac-4,60,10);
+    drawSpriteCentered(ctx, ICONS.LEGENDCHEST.rows, ICONS.LEGENDCHEST.pal, w*0.5, h*0.46, 7.5);
+  } else { // plains / trailside hunt
+    paintSky(ctx,w,h,groundFrac,'#d7ecc9','#f2f8e6');
+    paintSun(ctx,w-100,50,28,'rgba(255,248,210,.95)');
+    paintCloud(ctx,120,55,1.3,'rgba(255,255,255,.8)'); paintCloud(ctx,380,40,1,'rgba(255,255,255,.7)');
+    paintRidge(ctx,w,h,h*groundFrac,38,'#a9c98f');
+    ctx.fillStyle = '#8fb56b'; ctx.fillRect(0,h*groundFrac,w,h*(1-groundFrac));
+    drawSpriteCentered(ctx, DEER_ROWS, DEER_PAL, w*0.72, h*0.82, 4.2);
+    drawSpriteCentered(ctx, ICONS.PAW.rows, ICONS.PAW.pal, w*0.22, h*0.86, 4);
+  }
+  // ground texture
+  ctx.fillStyle = 'rgba(0,0,0,.05)';
+  for(let x=0;x<w;x+=24){ ctx.fillRect(x,h*groundFrac,10,h*(1-groundFrac)); }
+}
+function showArrivalScene(lm){
+  paintArrivalScene('arrivalCanvas', lm);
+  document.getElementById('arrival-name').textContent = lm.name;
+  document.getElementById('arrival-date').textContent = formatTrailDate(state.day);
+  document.getElementById('modal-arrival').classList.remove('hide');
+}
+function continueFromArrival(){
+  document.getElementById('modal-arrival').classList.add('hide');
+  proceedToLandmarkDecision(pendingLandmark);
+}
 function triggerLandmark(lm){
   pendingLandmark = lm;
+  state.sceneMode = 'arrival';
+  renderTrail();
+  showArrivalScene(lm);
+}
+function proceedToLandmarkDecision(lm){
   if(lm.type==='river'){ state.sceneMode='river'; triggerBanter(); openRiverChoice(lm); }
   else if(lm.type==='plains'){ state.sceneMode='plains'; triggerBanter(); openHunting(lm); }
   else if(lm.type==='town'){ state.sceneMode='town'; triggerBanter(); openTown(lm); }
