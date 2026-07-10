@@ -308,14 +308,14 @@
           <select id="pace-select"><option value="steady">Steady</option><option value="strenuous">Strenuous</option><option value="grueling">Grueling</option></select></div>
         <div><div class="muted" style="margin-bottom:4px;">Rations</div>
           <select id="ration-select"><option value="filling">Filling</option><option value="meager" selected>Meager</option><option value="barebones">Bare Bones</option></select></div>
-        <div style="align-self:flex-end;"><button class="btn" onclick="travelStretch()" id="travel-btn">Travel Next Stretch →</button></div>
+        <div style="align-self:flex-end;"><button class="btn" onclick="toggleTravelPause()" id="travel-btn">⏸ Pause Journey</button></div>
       </div>
       <div class="row" style="margin-top:8px;">
         <button class="btn small" onclick="restDay()">🛌 Rest a Day</button>
         <button class="btn small" id="forage-btn" onclick="forageAttempt()">🌿 Forage</button>
         <button class="btn small" id="fish-btn" onclick="fishAttempt()">🎣 Fish</button>
         <button class="btn small" onclick="huntAnytime()">🏹 Hunt Now</button>
-        <span class="muted" id="action-hint">Rest heals but costs a day. Forage and Fish only pay off near the right terrain — watch the log for it. Hunting costs ammo, not time.</span>
+        <span class="muted" id="action-hint">The journey moves on its own now — adjust pace/rations anytime. Rest heals but costs a day. Forage and Fish only pay off near the right terrain. Hunting costs ammo, not time.</span>
       </div>
       <div class="log" id="log"></div>
     </div>
@@ -360,11 +360,12 @@
   <div id="modal-hunt" class="modal-bg hide">
     <div class="modal">
       <h3><img id="hunt-icon" class="pixel" width="20" height="20"><span id="hunt-title">Hunting</span></h3>
-      <p class="muted">Deer dash, rabbits hop in bursts, turkeys zigzag, bison amble slow but take 2 hits. Each shot costs 1 ammo. Your party can only carry so much meat back — Hunting skill sets the limit. <span id="hunt-timer">20</span>s left.</p>
+      <p class="muted">Deer dash, rabbits hop in bursts, turkeys zigzag, bison amble slow but take 2 hits. Each shot costs 1 ammo — no clock, just your ammo and your aim. Tap where you want to shoot; your hunter turns to face it.</p>
       <canvas id="huntCanvas" width="400" height="240"></canvas>
       <div class="row between">
         <div class="muted">Hits: <b id="hunt-hits">0</b> &nbsp;|&nbsp; Ammo: <b id="hunt-ammo">0</b></div>
         <button class="btn" id="hunt-start-btn" onclick="startHunt()">Start Hunt</button>
+        <button class="btn small hide" id="hunt-stop-btn" onclick="stopHuntEarly()">Stop Hunting</button>
       </div>
     </div>
   </div>
@@ -990,10 +991,14 @@ function nearbyRiver(){
   return RIVER_LANDMARKS.find(lm=> state.distance>=lm.mile-20 && state.distance<lm.mile && !state.fishedRivers.has(lm.name)) || null;
 }
 
+// Miles/fatigue are PER DAY — the journey now ticks forward automatically,
+// one day at a time (see startTravelClock), instead of multi-day stretches
+// behind a "Travel" button. Rates tuned so Steady finishes a 2,000mi trail
+// in ~160-190 days, Grueling in under 100 — real trade-offs, not clicks.
 const PACE = {
-  steady:    {label:"Steady",    milesMin:12, milesMax:16, daysPerStretch:3, fatigue:0,  eventMod:1.0},
-  strenuous: {label:"Strenuous", milesMin:17, milesMax:22, daysPerStretch:2, fatigue:2,  eventMod:1.15},
-  grueling:  {label:"Grueling",  milesMin:23, milesMax:28, daysPerStretch:1, fatigue:5,  eventMod:1.3},
+  steady:    {label:"Steady",    milesMin:10, milesMax:14, fatigue:0,   eventMod:0.9},
+  strenuous: {label:"Strenuous", milesMin:15, milesMax:19, fatigue:1.5, eventMod:1.1},
+  grueling:  {label:"Grueling",  milesMin:20, milesMax:25, fatigue:3.5, eventMod:1.35},
 };
 const RATIONS = {
   filling:   {label:"Filling",   perMember:3, healthDelta:+3},
@@ -2166,7 +2171,7 @@ function departTrail(){
     members, leaderId:leader.id, leaderMultiplier:leader.mult, leaderClass:leader.name, leaderCls:leader.cls,
     biomeCounts, stackBonus, passedLandmarks:0, log:[], over:false,
     sceneMode:'trail', foragedZones:new Set(), fishedRivers:new Set(), leaderPenaltyApplied:false,
-    gravestones:[], seenGraves:new Set(),
+    gravestones:[], seenGraves:new Set(), autoTravel:true,
   };
   loadGravestones(route.key);
   logMsg(`Party departs the Genesis Homestead with ${state.oxen} oxen, ${state.food}lb food, ${state.ammo} ammo, ${state.parts} spare parts.`, 'chain');
@@ -2177,8 +2182,10 @@ function departTrail(){
   show('screen-trail');
   renderPartyStrip();
   renderTrail();
+  updateTravelBtn();
   startSceneLoop();
   startBanterLoop();
+  startTravelClock();
 }
 
 function partyStat(key){
@@ -2199,19 +2206,19 @@ function show(id){
 /* ============================================================
    TRAVELING SCENE — animated wagon, oxen, and walking party
    ============================================================ */
-let sceneRAF = null, sceneTime = 0, sceneGroundOffset = 0, sceneBurstUntil = 0;
+let sceneRAF = null, sceneTime = 0, sceneGroundOffset = 0;
 function startSceneLoop(){
   cancelAnimationFrame(sceneRAF);
   sceneTime = 0; sceneGroundOffset = 0;
   const loop = ()=>{
     sceneTime += 1;
-    const traveling = performance.now() < sceneBurstUntil;
+    const traveling = !!(state && state.autoTravel && !state.over && state.sceneMode==='trail' && !isAnyModalOpen());
     const paceEl = document.getElementById('pace-select');
     const paceMult = {steady:1, strenuous:1.3, grueling:1.65}[paceEl ? paceEl.value : 'steady'] || 1;
     const aliveNow = state ? state.members.filter(m=>m.alive) : [];
     const avgHealth = aliveNow.length ? aliveNow.reduce((s,m)=>s+m.health,0)/aliveNow.length : 100;
     const weary = avgHealth < 40;
-    sceneGroundOffset += (traveling ? 5 : 1.2) * paceMult * (weary ? 0.65 : 1);
+    sceneGroundOffset += (traveling ? 3.4 : 1.2) * paceMult * (weary ? 0.65 : 1);
     drawTravelScene(traveling, weary);
     sceneRAF = requestAnimationFrame(loop);
   };
@@ -2338,6 +2345,7 @@ function drawTravelScene(traveling, weary){
 function renderTrail(){
   document.getElementById('trail-leader-name').textContent = state.leaderClass;
   document.getElementById('stat-day').textContent = state.day;
+  updateTravelBtn();
   document.getElementById('stat-multiplier').textContent = '×'+state.leaderMultiplier;
   document.getElementById('stat-distance').textContent = Math.floor(state.distance);
   document.getElementById('stat-goal').textContent = TRAIL_GOAL.toLocaleString();
@@ -2642,19 +2650,54 @@ function logMsg(text, cls){
 /* ============================================================
    TRAVEL LOOP
    ============================================================ */
-function travelStretch(){
+/* ============================================================
+   TRAVEL CLOCK — the journey now advances on its own, one day
+   per tick, the way the original game auto-played through days
+   between landmarks. No "click to advance" button; pace/rations
+   can be changed on the fly without interrupting anything. The
+   clock pauses itself whenever a decision modal is open, and
+   resumes on its own once it's closed.
+   ============================================================ */
+const MODAL_IDS = ['modal-town','modal-fork','modal-hunt','modal-fish','modal-forage','modal-river','modal-raft','modal-decision'];
+function isAnyModalOpen(){
+  return MODAL_IDS.some(id=>{ const el=document.getElementById(id); return el && !el.classList.contains('hide'); });
+}
+let travelClockId = null;
+function startTravelClock(){
+  clearInterval(travelClockId);
+  travelClockId = setInterval(()=>{
+    if(!state || state.over){ clearInterval(travelClockId); return; }
+    if(!state.autoTravel) return;
+    if(isAnyModalOpen()) return;
+    if(state.sceneMode!=='trail') return;
+    advanceOneDay();
+  }, 1100);
+}
+function stopTravelClock(){ clearInterval(travelClockId); travelClockId=null; }
+function toggleTravelPause(){
+  if(!state) return;
+  state.autoTravel = !state.autoTravel;
+  updateTravelBtn();
+}
+function updateTravelBtn(){
+  const btn = document.getElementById('travel-btn');
+  if(!btn || !state) return;
+  btn.textContent = state.autoTravel ? '⏸ Pause Journey' : '▶ Resume Journey';
+  btn.classList.toggle('chain', !state.autoTravel);
+}
+
+function advanceOneDay(){
   if(state.over) return;
-  sceneBurstUntil = performance.now() + 1400;
   const paceKey = document.getElementById('pace-select').value;
   const rationKey = document.getElementById('ration-select').value;
   const pace = PACE[paceKey], ration = RATIONS[rationKey];
 
   const oxenAdj = Math.max(-4, Math.min(6, (state.oxen-2)*1));
   let miles = (pace.milesMin+oxenAdj) + Math.random()*((pace.milesMax+oxenAdj)-(pace.milesMin+oxenAdj));
-  miles = Math.max(4, miles);
+  miles = Math.max(3, miles);
   const prevDistance = state.distance;
   state.distance += miles;
-  state.day += pace.daysPerStretch;
+  state.day += 1;
 
   const enteredZone = FERTILE_ZONES.find(z=> z.start>prevDistance && z.start<=state.distance && !state.foragedZones.has(z.name));
   if(enteredZone) logMsg(`Passing through ${enteredZone.name} — fertile ground nearby. Forage while you can.`, 'chain');
@@ -2667,17 +2710,15 @@ function travelStretch(){
 
   const season = currentSeason();
   const aliveCount = state.members.filter(m=>m.alive).length;
-  const consumed = (ration.perMember + season.foodBurn) * aliveCount;
-  state.food -= consumed;
-  if(state.food<0){ state.food=0; applyHealth(-8, "Rations ran out — the party goes hungry.", null, 'starvation'); }
+  const consumed = ration.perMember + season.foodBurn;
+  state.food -= consumed*aliveCount;
+  if(state.food<0){ state.food=0; applyHealth(-3, "Rations ran out — the party goes hungry.", null, 'starvation'); }
   applyHealth(ration.healthDelta, null);
   if(pace.fatigue>0) applyHealth(-pace.fatigue, null);
 
   const sickMembers = state.members.filter(m=>m.alive && m.sick);
-  sickMembers.forEach(m=>{
-    applyHealth(-2*pace.daysPerStretch, null, m.id);
-  });
-  if(sickMembers.length){
+  sickMembers.forEach(m=>{ applyHealth(-1.3, null, m.id); });
+  if(sickMembers.length && state.day%3===0){
     logMsg(`${sickMembers.map(m=>m.name).join(', ')} ${sickMembers.length>1?'are':'is'} still sick and losing strength — rest a day to give them a chance to recover.`, 'bad');
   }
 
@@ -2715,10 +2756,13 @@ function applyHealth(delta, msg, targetId, cause){
 }
 
 function rollRandomEvent(mod){
+  // Re-tuned for daily ticks (this used to fire once per 1-3 day stretch;
+  // now it fires once per day, so the "nothing happens" odds are raised
+  // to keep overall event frequency across a run about the same).
   const season = currentSeason();
   const r = Math.random();
-  if(r<0.40) return;
-  if(r<0.50){
+  if(r<0.70) return;
+  if(r<0.75){
     if(season.blizzard && Math.random()<0.4){
       const resist = partyStat('resist');
       const dmg = Math.max(3, Math.round((9*mod*season.eventMod) - resist*0.4));
@@ -2727,11 +2771,11 @@ function rollRandomEvent(mod){
       const gain = 15+Math.floor(Math.random()*20); state.food += gain;
       logMsg(`Wild berries found along the trail (+${gain} food).`, 'good');
     }
-  } else if(r<0.65){
+  } else if(r<0.825){
     triggerSickness();
-  } else if(r<0.80){
+  } else if(r<0.90){
     triggerWagonTrouble();
-  } else if(r<0.92){
+  } else if(r<0.96){
     const leadership = partyStat('leadership');
     if(Math.random()*10 < leadership){ logMsg(`A thief was spotted and driven off (Leadership ${leadership.toFixed(1)}).`, 'good'); }
     else { const loss = Math.min(state.cash, 10+Math.floor(Math.random()*20)); state.cash -= loss; logMsg(`Robbed in the night — lost ${loss} \u039e.`, 'bad'); }
@@ -2974,20 +3018,29 @@ function resolveHazard(lm, baseDanger, slow){
 }
 
 /* ============================================================
-   HUNTING MINIGAME — each species moves differently: deer dash
-   fast in a straight line, rabbits hop in bursts with pauses,
-   bison amble slowly but take 2 hits, turkeys zigzag erratically.
-   Hunting skill raises spawn rate; value differs per species, so
-   a good hunt is about which animals you connect with, not just
-   how many clicks land.
+   HUNTING MINIGAME — closer to the 1985/1990 original: you're a
+   hunter standing in the field, not a disembodied cursor. Animals
+   creep across the landscape at a deliberate pace (bison slowest
+   and most food, rabbits fastest and least). There is NO countdown
+   timer — same as the original, the only limit is your ammo. You
+   stop when you choose to, or when you run dry.
    ============================================================ */
-let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntKillValue=0, huntKillLog=[], huntTimeLeft=20, huntTimerId=null, huntSpawnId=null, huntRAF=null;
+let huntCtx, huntTargets=[], huntActive=false, huntHits=0, huntKillValue=0, huntKillLog=[], huntSpawnId=null, huntRAF=null;
+let huntFaceLeft=false, huntShotUntil=0, huntShotX=0, huntShotY=0;
 const ANIMALS = {
-  deer:   {rows:DEER_ROWS,   pal:DEER_PAL,   r:20, hp:1, value:14, speedMin:3.2, speedMax:4.4, weight:25},
-  rabbit: {rows:RABBIT_ROWS, pal:RABBIT_PAL, r:14, hp:1, value:8,  speedMin:2.4, speedMax:3.4, weight:35},
-  bison:  {rows:BISON_ROWS,  pal:BISON_PAL,  r:26, hp:2, value:22, speedMin:0.8, speedMax:1.3, weight:10},
-  turkey: {rows:TURKEY_ROWS, pal:TURKEY_PAL, r:16, hp:1, value:10, speedMin:1.6, speedMax:2.4, weight:30},
+  deer:   {rows:DEER_ROWS,   pal:DEER_PAL,   r:20, hp:1, value:14, speedMin:1.5, speedMax:2.1, weight:25},
+  rabbit: {rows:RABBIT_ROWS, pal:RABBIT_PAL, r:14, hp:1, value:8,  speedMin:1.3, speedMax:1.8, weight:35},
+  bison:  {rows:BISON_ROWS,  pal:BISON_PAL,  r:26, hp:2, value:22, speedMin:0.4, speedMax:0.65,weight:10},
+  turkey: {rows:TURKEY_ROWS, pal:TURKEY_PAL, r:16, hp:1, value:10, speedMin:0.8, speedMax:1.15,weight:30},
 };
+const HUNTER_ROWS = ["..HHHH..",".HHHHHH.","HSSSSSSH","HSSSSSSH",".OOOOOGG","OOOOOOGG","OOOOOOOG",".LL..RR.",".LL..RR."];
+const HUNTER_PAL = {H:'#5b3a29', S:'#c68642', O:'#3a4a2f', G:'#6b6b6b', L:'#2b2318', R:'#2b2318'};
+function drawSpriteCenteredFacing(ctx, rows, palette, cx, cy, pixel, faceLeft){
+  ctx.save();
+  if(faceLeft){ ctx.translate(cx*2,0); ctx.scale(-1,1); }
+  drawSpriteCentered(ctx, rows, palette, cx, cy, pixel);
+  ctx.restore();
+}
 function pickAnimalKind(){
   const totalW = Object.values(ANIMALS).reduce((s,d)=>s+d.weight,0);
   let roll = Math.random()*totalW;
@@ -2999,46 +3052,58 @@ function openHunting(lm){
   document.getElementById('hunt-icon').src = SPRITE_URLS[lm.icon] || SPRITE_URLS.PAW;
   document.getElementById('hunt-title').textContent = lm.name + " — Hunting";
   document.getElementById('modal-hunt').classList.remove('hide');
-  huntHits=0; huntKillValue=0; huntKillLog=[]; huntTimeLeft=20; huntTargets=[];
+  huntHits=0; huntKillValue=0; huntKillLog=[]; huntTargets=[]; huntFaceLeft=false; huntShotUntil=0;
   document.getElementById('hunt-hits').textContent = '0';
   document.getElementById('hunt-ammo').textContent = state.ammo;
-  document.getElementById('hunt-timer').textContent = '20';
   const startBtn = document.getElementById('hunt-start-btn');
+  const stopBtn = document.getElementById('hunt-stop-btn');
+  if(stopBtn) stopBtn.classList.add('hide');
   if(state.ammo<=0){
     startBtn.textContent = 'No Ammo — Buy Some in Town';
     startBtn.disabled = true;
   } else {
     startBtn.textContent = 'Start Hunt';
     startBtn.disabled = false;
+    startBtn.classList.remove('hide');
   }
   const canvas = document.getElementById('huntCanvas');
   huntCtx = canvas.getContext('2d');
-  huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
+  drawHuntBackdrop();
+  drawSpriteCenteredFacing(huntCtx, HUNTER_ROWS, HUNTER_PAL, canvas.width/2, canvas.height-24, 4, huntFaceLeft);
   canvas.onclick = handleHuntClick;
 }
+function drawHuntBackdrop(){
+  const canvas = document.getElementById('huntCanvas');
+  const season = currentSeason();
+  const skyCol = season.key==='winter' ? '#dce8ea' : season.key==='fall' ? '#e8d9a8' : '#cfe0b8';
+  const groundCol = season.key==='winter' ? '#eef4f1' : season.key==='fall' ? '#c9a85c' : '#a9cf8f';
+  huntCtx.fillStyle = skyCol; huntCtx.fillRect(0,0,canvas.width,canvas.height*0.72);
+  huntCtx.fillStyle = groundCol; huntCtx.fillRect(0,canvas.height*0.72,canvas.width,canvas.height*0.28);
+}
 function startHunt(){
-  document.getElementById('hunt-start-btn').disabled = true;
+  document.getElementById('hunt-start-btn').classList.add('hide');
+  const stopBtn = document.getElementById('hunt-stop-btn');
+  if(stopBtn) stopBtn.classList.remove('hide');
   huntActive = true;
   const huntingSkill = partyStat('hunting');
-  const spawnRate = Math.max(500, 900 - huntingSkill*30);
+  const spawnRate = Math.max(700, 1300 - huntingSkill*40);
   huntSpawnId = setInterval(spawnTarget, spawnRate);
-  huntTimerId = setInterval(function(){
-    huntTimeLeft--; document.getElementById('hunt-timer').textContent = huntTimeLeft;
-    if(huntTimeLeft<=0) endHunt();
-  }, 1000);
+  spawnTarget();
   huntFrameLoop();
 }
+function stopHuntEarly(){ if(huntActive) endHunt(); }
 function spawnTarget(){
+  if(huntTargets.length>=6) return; // keep the field readable at a walking pace
   const canvas = document.getElementById('huntCanvas');
   const kind = pickAnimalKind();
   const def = ANIMALS[kind];
   const fromLeft = Math.random()<0.5;
-  const y = 26+Math.random()*(canvas.height-52);
+  const y = 26+Math.random()*(canvas.height*0.66-26);
   const speed = def.speedMin + Math.random()*(def.speedMax-def.speedMin);
   const x = fromLeft ? -20 : canvas.width+20;
   const vx = fromLeft ? speed : -speed;
   huntTargets.push({
-    kind, x, y, vx, vy:(Math.random()-0.5)*0.5,
+    kind, x, y, vx, vy:(Math.random()-0.5)*0.3,
     hp:def.hp, maxHp:def.hp, r:def.r, value:def.value,
     born:Date.now(), hopping:true, hopTimer:0, zigTimer:0, flashUntil:0,
   });
@@ -3054,20 +3119,20 @@ function huntFrameLoop(){
       t.hopTimer -= 16;
       if(t.hopTimer<=0){
         t.hopping = !t.hopping;
-        t.hopTimer = t.hopping ? (150+Math.random()*150) : (220+Math.random()*220);
+        t.hopTimer = t.hopping ? (200+Math.random()*180) : (280+Math.random()*260);
         if(t.hopping){ const s=def.speedMin+Math.random()*(def.speedMax-def.speedMin); t.vx = (t.vx>=0?1:-1)*s; }
       }
-      if(t.hopping){ t.x += t.vx; t.y += Math.sin(now*0.02)*0.7; }
+      if(t.hopping){ t.x += t.vx; t.y += Math.sin(now*0.015)*0.6; }
     } else if(t.kind==='turkey'){
       t.zigTimer -= 16;
-      if(t.zigTimer<=0){ t.vy = (Math.random()-0.5)*3.2; t.zigTimer = 180+Math.random()*220; }
+      if(t.zigTimer<=0){ t.vy = (Math.random()-0.5)*1.8; t.zigTimer = 260+Math.random()*260; }
       t.x += t.vx; t.y += t.vy;
-      t.y = Math.max(18, Math.min(canvas.height-18, t.y));
+      t.y = Math.max(18, Math.min(canvas.height*0.68, t.y));
     } else {
       t.x += t.vx; t.y += t.vy;
     }
     const offscreen = t.x < -40 || t.x > canvas.width+40;
-    const stale = now - t.born > 6000;
+    const stale = now - t.born > 18000;
     if(offscreen || stale) huntTargets.splice(i,1);
   }
   drawHunt();
@@ -3075,7 +3140,7 @@ function huntFrameLoop(){
 }
 function drawHunt(){
   const canvas = document.getElementById('huntCanvas');
-  huntCtx.fillStyle = '#cfe0b8'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
+  drawHuntBackdrop();
   const now = Date.now();
   huntTargets.forEach(function(t){
     const def = ANIMALS[t.kind];
@@ -3086,6 +3151,12 @@ function drawHunt(){
       huntCtx.beginPath(); huntCtx.arc(t.x, t.y, t.r+6, 0, Math.PI*2); huntCtx.stroke();
     }
   });
+  const hunterX = canvas.width/2, hunterY = canvas.height-24;
+  if(now < huntShotUntil){
+    huntCtx.strokeStyle = 'rgba(228,211,168,.85)'; huntCtx.lineWidth = 1.5;
+    huntCtx.beginPath(); huntCtx.moveTo(hunterX, hunterY-14); huntCtx.lineTo(huntShotX, huntShotY); huntCtx.stroke();
+  }
+  drawSpriteCenteredFacing(huntCtx, HUNTER_ROWS, HUNTER_PAL, hunterX, hunterY, 4, huntFaceLeft);
   if(state.ammo<=0){
     huntCtx.fillStyle = 'rgba(43,35,24,.55)'; huntCtx.fillRect(0,0,canvas.width,canvas.height);
     huntCtx.fillStyle = '#e4d3a8'; huntCtx.font = 'bold 20px monospace'; huntCtx.textAlign='center';
@@ -3095,10 +3166,12 @@ function drawHunt(){
 function handleHuntClick(e){
   if(!huntActive) return;
   if(state.ammo<=0){ return; }
-  state.ammo--; document.getElementById('hunt-ammo').textContent = state.ammo;
   const rect = e.target.getBoundingClientRect();
   const scaleX = e.target.width/rect.width, scaleY = e.target.height/rect.height;
   const x = (e.clientX-rect.left)*scaleX, y = (e.clientY-rect.top)*scaleY;
+  state.ammo--; document.getElementById('hunt-ammo').textContent = state.ammo;
+  huntFaceLeft = x < e.target.width/2;
+  huntShotX = x; huntShotY = y; huntShotUntil = Date.now()+110;
   for(let i=huntTargets.length-1;i>=0;i--){
     const t = huntTargets[i];
     if(Math.hypot(t.x-x,t.y-y)<t.r+10){
@@ -3113,13 +3186,16 @@ function handleHuntClick(e){
       break;
     }
   }
+  if(state.ammo<=0) setTimeout(()=>{ if(huntActive) endHunt(); }, 900);
 }
 function endHunt(){
-  huntActive=false; clearInterval(huntSpawnId); clearInterval(huntTimerId); cancelAnimationFrame(huntRAF);
+  huntActive=false; clearInterval(huntSpawnId); cancelAnimationFrame(huntRAF);
   document.getElementById('modal-hunt').classList.add('hide');
   state.sceneMode='trail';
   const huntingSkill = partyStat('hunting');
-  const carryCapacity = 24 + huntingSkill*6;
+  const aliveCount = state.members.filter(m=>m.alive).length;
+  let carryCapacity = 24 + huntingSkill*6;
+  if(aliveCount>=2) carryCapacity = Math.round(carryCapacity*1.4); // more hands, more meat carried — like the original's 2-member carry bonus
   const carried = Math.min(huntKillValue, carryCapacity);
   const wasted = huntKillValue - carried;
   const gain = Math.round(carried);
@@ -3715,6 +3791,7 @@ function checkEndConditions(){
 function endRun(success){
   if(state.endRunCalled) return;
   state.endRunCalled = true;
+  stopTravelClock();
   const survivors = state.members.filter(m=>m.alive);
   const healthSum = survivors.reduce((s,m)=>s+m.health,0);
   const stackMult = 1 + Math.min(state.stackBonus,3)*0.05;
@@ -3878,6 +3955,7 @@ async function renderLeaderboard(targetId){
 function resetGame(){
   stopSceneLoop();
   stopBanterLoop();
+  stopTravelClock();
   selected=[]; leaderIdx=null; state=null;
   if(!usingWallet){
     document.getElementById('wallet-status').textContent = "Showing the free starter roster. Connect a wallet to play with the Green Acres NFTs you actually hold.";
