@@ -110,6 +110,9 @@
   .trailmap .wagon{position:absolute; transform:translate(-50%,-50%); transition:left 1.1s ease, top 1.1s ease;}
   .trailmap .lm{position:absolute; transform:translate(-50%,-50%);}
   .trailmap .lm-label{position:absolute; font-size:8.5px; transform:translateX(-50%); white-space:nowrap; color:#4a4030; background:rgba(255,253,246,.85); padding:1px 5px; border-radius:8px; border:1px solid rgba(43,35,24,.12);}
+  .map-legend{display:flex; flex-wrap:wrap; gap:2px 12px; margin:0 0 10px; font-size:10.5px; color:#6a5d44;}
+  .map-legend span{display:inline-flex; align-items:center; gap:4px;}
+  .map-legend img{image-rendering:pixelated; image-rendering:crisp-edges;}
 
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:10px 0;}
   .stat-box{background:rgba(43,35,24,.06); border-radius:5px; padding:9px 10px;}
@@ -295,6 +298,7 @@
       <div class="party-strip" id="party-strip"></div>
       <canvas id="travelScene" width="640" height="90"></canvas>
       <div class="trailmap" id="trailmap"></div>
+      <div class="map-legend" id="map-legend"></div>
       <div class="resource-strip">
         <div class="resource-chip"><span class="label">Distance</span><span class="value"><span id="stat-distance">0</span>/<span id="stat-goal">2000</span>mi</span></div>
         <div class="resource-chip"><span class="label">Food</span><span class="value" id="stat-food">0</span></div>
@@ -735,12 +739,18 @@ const LOG_ROWS = ["KKKKKKKK","WWWWWWWW","KKKKKKKK"];
 const LOG_PAL = {K:'#3a2a1a', W:'#6d4c33'};
 
 const ICONS = {
-  FUEL: {rows:["..KKKK..",".KWWWWK.","KWWRWWWK","KWWRWWWK","KWWWWWWK","KWWWWWWK","KWWWWWWK","..KKKK.."], pal:{K:'#2b2318', W:'#8d8d8d', R:'#b23a2f'}},
-  RAVINE: {rows:["KK....KK","KKK..KKK",".KKKKKK.","KK.KK.KK","KKK..KKK","K.KKKK.K","KK.KK.KK","KKKKKKKK"], pal:{K:'#5b3a29'}},
-  GORGE: {rows:["K......K","KY.....K","KYY....K","K.YY...K","K..YY..K","K...YYK.","K....YYK","K.....YK"], pal:{K:'#5b5b5b', Y:'#c9a227'}},
-  STORE: {rows:["..KKKK..",".KRRRRK.","KRRRRRRK","KWWWWWWK","KWKWWKWK","KWKWWKWK","KWKDDKWK","KKKKKKKK"], pal:{K:'#2b2318', R:'#b23a2f', W:'#e4d3a8', D:'#5b3a29'}},
-  PAW: {rows:[".K...K..","..K.K...","..BBB...",".BBBBB..","..BBB...","........","........","........"], pal:{K:'#7a4a2b', B:'#7a4a2b'}},
-  SIGNPOST: {rows:["..KKKK..",".KWWWWK.","KWWWWWWK","..K..K..","..K..K..","..K..K..","..K..K..","..KKKK.."], pal:{K:'#3a3226', W:'#e4d3a8'}},
+  // Hazards share one unmistakable "warning triangle" shape so they read as
+  // danger at a glance; color alone tells you which flavor of danger it is.
+  FUEL:   {rows:["...KK...","...EE...","..KEEK..","..KEEK..",".KKEEKK.",".KKKKKK.","KKKEEKKK","KKKKKKKK"], pal:{K:'#d9772f', E:'#2b2318'}},
+  RAVINE: {rows:["...KK...","...EE...","..KEEK..","..KEEK..",".KKEEKK.",".KKKKKK.","KKKEEKKK","KKKKKKKK"], pal:{K:'#8a3a2e', E:'#e4d3a8'}},
+  GORGE:  {rows:["...KK...","...EE...","..KEEK..","..KEEK..",".KKEEKK.",".KKKKKK.","KKKEEKKK","KKKKKKKK"], pal:{K:'#4a5568', E:'#e8d9a8'}},
+  STORE: {rows:["..KKKK..",".KRRRRK.","KRRRRRRK","KWWWWWWK","KWKWWKWK","KWKWWKWK","KWKDDKWK","KKKKKKKK"], pal:{K:'#1a1410', R:'#c9382c', W:'#f2e4bf', D:'#5b3a29'}},
+  // Fish for river crossings — a clear "water ahead" read, not a mystery blob.
+  FISH: {rows:["........",".KKKKK..","KWWWWWT.","KWEWWWTT","KWWWWWT.",".KKKKK..","........","........"], pal:{K:'#1f4a5c', W:'#5fa8c9', E:'#1a1a1a', T:'#1f4a5c'}},
+  // A forked arrow — two paths diverging — instead of an ambiguous "N".
+  SIGNPOST: {rows:["K......K",".K....K.","..K..K..","...KK...","...KK...","...KK...","...KK...","..KKKK.."], pal:{K:'#7a5ea8'}},
+  // A real paw print (3 toes + pad) instead of an unreadable smudge.
+  PAW: {rows:["........",".K.K.K..",".K.K.K..","........","..KKKK..",".KKKKKK.",".KKKKKK.","..KKKK.."], pal:{K:'#4a3323'}},
   CHAINLINK: {rows:["OKKO..OK","K....K..","K....K..","OKKO.OKK","..K....K","..K....K","OKKO..OK","........"], pal:{K:'#4fd6c4', O:'#2f6f66'}},
   LEGENDCHEST: {rows:["KKKKKKKK","KYYYYYYK","KYWWWWYK","KYYYYYYK","KWWWWWWK","KWWWWWWK","KWWWWWWK","KKKKKKKK"], pal:{K:'#3a3226', Y:'#c9a227', W:'#e4d3a8'}},
   BASKET: {rows:[".KKKKKK.","K......K","KWWWWWWK","KWWWWWWK","KKKKKKKK","........","........","........"], pal:{K:'#5b3a29', W:'#c9382c'}},
@@ -2181,6 +2191,7 @@ function departTrail(){
   }
   show('screen-trail');
   renderPartyStrip();
+  renderMapLegend();
   renderTrail();
   updateTravelBtn();
   startSceneLoop();
@@ -2371,15 +2382,17 @@ function renderTrail(){
   const map = document.getElementById('trailmap');
   const pct = Math.min(100, state.distance/TRAIL_GOAL*100);
   const bendY = frac=> 50 + Math.sin(frac*Math.PI*3.2)*26; // winding vertical offset along the trail
+  const LM_TYPE_LABEL = {river:'River Crossing', hazard:'Hazard', fork:'Fork in the Trail', town:'Town', plains:'Hunting Grounds', legendary:'Legendary Site'};
   let lmHtml = '';
   LANDMARKS.forEach((lm,i)=>{
     const frac = Math.min(1, lm.mile/TRAIL_GOAL);
     const p = frac*100;
     const y = bendY(frac);
-    lmHtml += `<img class="lm pixel" style="left:${p}%; top:${y-6}px" src="${SPRITE_URLS[lm.icon]}" width="20" height="20">`;
+    const typeLabel = LM_TYPE_LABEL[lm.type] || lm.type;
+    lmHtml += `<img class="lm pixel" title="${lm.name} — ${typeLabel} (mile ${lm.mile})" style="left:${p}%; top:${y-8}px" src="${SPRITE_URLS[lm.icon]}" width="26" height="26">`;
     const nearby = Math.abs(lm.mile - state.distance) < 130;
     if(nearby){
-      const stagger = i%2===0 ? 14 : 26;
+      const stagger = i%2===0 ? 18 : 30;
       lmHtml += `<div class="lm-label" style="left:${p}%; top:${y+stagger}px">${lm.name}</div>`;
     }
   });
@@ -2387,7 +2400,7 @@ function renderTrail(){
     const frac = Math.min(1, g.mile/TRAIL_GOAL);
     const p = frac*100;
     const y = bendY(frac);
-    lmHtml += `<img class="lm pixel" title="${g.member_name} — ${g.cause} (${g.username})" style="left:${p}%; top:${y+8}px; opacity:.8;" src="${SPRITE_URLS.GRAVE}" width="12" height="12">`;
+    lmHtml += `<img class="lm pixel" title="${g.member_name} — ${g.cause} (${g.username})" style="left:${p}%; top:${y+8}px; opacity:.8;" src="${SPRITE_URLS.GRAVE}" width="14" height="14">`;
   });
   const wagonY = bendY(pct/100);
   map.innerHTML = `<div class="track"></div><div class="fill" style="width:${pct}%"></div>${lmHtml}<img class="wagon pixel" style="left:${pct}%; top:${wagonY}px" src="${SPRITE_URLS.WAGON}" width="42" height="30">`;
@@ -2420,6 +2433,22 @@ function renderTrail(){
   logEl.innerHTML = state.log.slice().reverse().map(l=>`<div class="${l.cls||''}">${l.text}</div>`).join('');
 }
 
+function renderMapLegend(){
+  const el = document.getElementById('map-legend');
+  if(!el) return;
+  const items = [
+    {icon:'STORE', label:'Town'},
+    {icon:'FISH', label:'River'},
+    {icon:'SIGNPOST', label:'Fork'},
+    {icon:'PAW', label:'Hunting Grounds'},
+    {icon:'FUEL', label:'Gas Hazard'},
+    {icon:'RAVINE', label:'Canyon Hazard'},
+    {icon:'GORGE', label:'Gorge Hazard'},
+    {icon:'LEGENDCHEST', label:'Legendary Site'},
+    {icon:'GRAVE', label:"Traveler's Grave"},
+  ];
+  el.innerHTML = items.map(it=>`<span><img class="pixel" src="${SPRITE_URLS[it.icon]}" width="14" height="14">${it.label}</span>`).join('');
+}
 function renderPartyStrip(){
   const el = document.getElementById('party-strip');
   el.innerHTML = state.members.map((m,i)=>{
