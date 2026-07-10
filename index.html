@@ -1,3 +1,76 @@
+
+Green Acres
+Figure out a game to make using an NFT project and its meta data.
+
+
+
+How can I help you today?
+
+
+You're out of usage credits. Buy more to keep going now, or wait until 2:30 AM when your plan usage resets.
+Buy more
+Game review and balance assessment
+Last message 14 minutes ago
+Email sign up issues investigation
+Last message 37 minutes ago
+Oregon Trail-style gameplay
+Last message 1 hour ago
+Game thoughts and opinions
+Last message 8 hours ago
+Designing a daily community game
+Last message yesterday
+Memory
+Only you
+Purpose & context Adam is building a web3 NFT browser game called Green Acres Trail (also referred to as WAGMI Trail) under the brand DOLO x Green Acres. The game is an Oregon Trail-style roguelike where players connect an Ethereum wallet, select up to 4 Green Acres NFTs as party members, and travel 2,000 chain-miles to reach Diamond Acres. The underlying NFT collection is 4,000 tokens with 19 named 1-of-1 legendaries (contract: 0x266Cd5A2807082C2D09B346dC87311189DaeD36F). The game is deployed as a single static HTML file on Vercel using vanilla JS and Canvas — no frameworks. It integrates Supabase for leaderboard/profile persistence and Google OAuth for sign-in. Adam's X handle is @dolodood. Current state The game has been through extensive iterative rebuilding across many sessions. Major systems now in place: Skill system: 7 named skills (Hunting, Scavenging, Fishing, Rafting, Tinkering, Medicine, Leadership) mapped to concrete gameplay systems, calibrated via 30,000-sample weighted simulation against actual trait-frequency data (283 trait values across 8 categories). Distribution is balanced; Leadership now mid-pack at ~5.1 average after significant rebalancing (lowered base, redistributed large trait buckets, converted Homestead background to flat +1 across all 7 skills). Minigames: All five rebuilt or created from scratch — Hunting (per-species movement patterns, carry-weight cap, 20-second window), Foraging (basket-catch falling fruit/dodge thorns, gated to 12 fertile zones per run to close infinite-food exploit), Rafting (dodge rocks/logs driven by procedural river stats shown on pre-crossing decision card), Fishing (reveals species and weights with summary log), Tinkering/Medicine (converted from auto-RNG to decision cards with real tradeoffs including time cost). Wagon system: Rebuilt with a programmatic 17-row sprite; cosmetic customization system with 4 categories (Canvas Color, Trim Color, Wheel Style, Accessory) and 18 unlockable options purchased with Trail Points. Customization applies live across home screen, travel scene, and trailmap icon. Supabase save function updated; SQL migration provided. Bug fixes: Resolved async double-halving vulnerability in score multiplier (leaderPenaltyApplied idempotency flag); fixed oxen convoy order; fixed uniform-vs-per-member health loss. Infrastructure: Supabase project at https://vguwodaovoqyljixtqbj.supabase.co; Google OAuth Client ID 8027673446-30g1k56bblsdcqk56ajid007fpm8d2tb.apps.googleusercontent.com; two tables: leaderboard and playerprofiles. Key learnings & principles Async modal conversions require care around idempotency — any logic that fires on event resolution can now fire multiple times if also triggered by the event initiator. Gating resource-gathering minigames to finite map zones (rather than unlimited access) is the correct exploit fix — patching the minigame itself doesn't address infinite-use root causes. Skill distribution balance requires simulation against real trait bucket sizes, not just intuition — large cosmetic-category buckets silently inflate whichever skill they're mapped to. Tradeoff-based decision cards (where the "best" option costs a resource like time) make systems feel meaningful; auto-RNG outcomes feel inert. Homestead background bonus was originally designed as a flat all-skills buff — restoring design intent fixed both a balance issue and a thematic inconsistency. Approach & patterns Adam prefers direct execution over lengthy explanation — deliver working code, not narration about what will be done. Strong preference for procedural pixel art over emoji throughout the UI. Pushes back quickly when output feels "AI-like" (e.g., em-dash heavy copy) or when the game feels weak/shallow — feedback should be taken as a signal to add depth, not polish surface details. Iterative build style: identify broken/dead systems first, rebuild from scratch rather than patch where warranted, verify with simulation where possible. Scores auto-save without requiring user action; wallet connection persists across replays; returning Google sign-ins skip username entry via Supabase lookup. Rarity scores use the formula sum of (3981/count) across trait categories, with tier thresholds (Common/Uncommon/Rare/Epic) calibrated against simulated score distribution. Tools & resources Stack: Vanilla JS, HTML Canvas, single-file deployment on Vercel Backend: Supabase (leaderboard + playerprofiles tables) Auth: Google OAuth Blockchain: ethers.js, NFT metadata pulled from IPFS Audio: Web Audio API (generative background music) Data: Real published trait-frequency counts (283 trait values, 8 categories) used for skill calibration and rarity scoring
+
+Last updated 21 hours ago
+
+Instructions
+Add instructions to tailor Claude’s responses
+
+Files
+9% of project capacity used
+Search mode
+
+index.html
+4,243 lines
+
+html
+
+
+
+index.html
+4,400 lines
+
+html
+
+
+
+Context
+51 lines
+
+text
+
+
+
+green_acres_trail_reference.xlsx
+xlsx
+
+
+
+green_acres_traits.xlsx
+xlsx
+
+
+
+trait_skill_mapping.xlsx
+xlsx
+
+
+index.html
+
+
+Syntax highlighting has been disabled due to code size.
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,6 +144,17 @@
   .qty input{width:52px; text-align:center; padding:6px; border-radius:4px; border:1px solid rgba(43,35,24,.25); font-family:'IBM Plex Mono'; font-size:12px;}
 
   #travelScene{display:block; margin:0 auto 6px; max-width:100%; height:auto; border-radius:6px; border:1px solid rgba(43,35,24,.18); background:#bfe3e0;}
+  .scene-wrap{position:relative;}
+  .scene-announce{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%) translateY(-6px);
+    display:flex; align-items:center; gap:8px; max-width:88%;
+    background:rgba(255,253,246,.96); color:var(--ink); border:2px solid var(--ink); border-radius:20px;
+    padding:7px 14px 7px 8px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:600; line-height:1.3;
+    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; z-index:6;
+    box-shadow:0 3px 0 rgba(43,35,24,.25);
+  }
+  .scene-announce img{width:22px; height:22px; flex:0 0 auto;}
+  .scene-announce.show{opacity:1; transform:translateX(-50%) translateY(0);}
   .party-strip{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:6px 0 4px;}
   .party-card{position:relative; text-align:center;}
   .party-card img{width:56px; height:68px; border-radius:4px; border:2px solid rgba(43,35,24,.2);}
@@ -104,6 +188,7 @@
     border:5px solid transparent; border-top-color:var(--parchment); z-index:1;
   }
   .bubble.show{opacity:1; transform:translateX(-50%) translateY(0) scale(1);}
+  #screen-trail .panel > .row.between:first-child{margin-bottom:46px;}
   .trailmap{position:relative; height:112px; margin:6px 0 24px;}
   .trailmap .track{position:absolute; top:50px; left:0; right:0; height:3px; background:rgba(43,35,24,.14); border-radius:2px;}
   .trailmap .fill{position:absolute; top:50px; left:0; height:3px; background:linear-gradient(90deg,var(--good),var(--chain-cyan)); border-radius:2px; transition:width 1.1s ease;}
@@ -308,7 +393,13 @@
         <div class="muted" style="text-align:right;"><span id="stat-date">March 1, 1848</span> · Day <span id="stat-day">1</span><br><span id="stat-multiplier">×1</span> score multiplier · <span id="stat-season">Spring</span></div>
       </div>
       <div class="party-strip" id="party-strip"></div>
-      <canvas id="travelScene" width="640" height="90"></canvas>
+      <div class="scene-wrap">
+        <canvas id="travelScene" width="640" height="150"></canvas>
+        <div class="scene-announce" id="scene-announce">
+          <img class="pixel" id="scene-announce-icon" alt="">
+          <span id="scene-announce-text"></span>
+        </div>
+      </div>
       <div class="trailmap" id="trailmap"></div>
       <div class="map-legend" id="map-legend"></div>
       <div class="resource-strip">
@@ -606,15 +697,26 @@ const WAGON_ROWS = [
   ".BDDDDDDDDDDDDB.",
   ".BBBBBBBBBBBBBB.",
   ".KKKKKKKKKKKKKK.",
-  ".TTT.DDDDDD.TTT.",
-  "T.H.TDDDDDDT.H.T",
-  "THHHTDDDDDDTHHHT",
-  "T.H.TDDDDDDT.H.T",
-  ".TTT........TTT.",
+  ".TTTT.DDDD.TTTT.",
+  "TTTTTTDDDDTTTTTT",
+  "THHHHTDDDDTHHHHT",
+  "TTTTTTDDDDTTTTTT",
+  ".TTTT.DDDD.TTTT.",
+];
+// Body (rows 0-11) is fixed; the wheels (rows 12-16) get swapped for a second
+// frame in the travel scene to fake a spinning spoke as the wagon rolls —
+// without this the wheels are just static art despite the wagon "moving".
+const WAGON_BODY_ROWS = WAGON_ROWS.slice(0,12);
+const WAGON_WHEELS_B = [
+  ".TTTT.DDDD.TTTT.",
+  "T.HH.TDDDDT.HH.T",
+  "TTTTTTDDDDTTTTTT",
+  "T.HH.TDDDDT.HH.T",
+  ".TTTT.DDDD.TTTT.",
 ];
 // W=canvas, R=canvas rib shade (derived), K=trim, B=body wood (fixed),
-// D=dark plank/hitch (fixed), T/H=wheel rim+spoke (customizable together).
-const WAGON_PAL = {K:'#2b2318', W:'#f4ede0', R:'#d8cdb8', B:'#7a4a2b', D:'#3a2a1a', T:'#5b3a29', H:'#5b3a29'};
+// D=dark plank/hitch (fixed), T=wheel rim (customizable), H=wheel hub (derived, darker than rim).
+const WAGON_PAL = {K:'#2b2318', W:'#f4ede0', R:'#d8cdb8', B:'#7a4a2b', D:'#3a2a1a', T:'#5b3a29', H:'#3a2415'};
 function shadeHex(hex, amt){
   const n = parseInt(hex.slice(1),16);
   const r = Math.max(0,Math.min(255,(n>>16)+amt));
@@ -770,8 +872,10 @@ const ICONS = {
   RAVINE: {rows:["...KK...","...EE...","..KEEK..","..KEEK..",".KKEEKK.",".KKKKKK.","KKKEEKKK","KKKKKKKK"], pal:{K:'#8a3a2e', E:'#e4d3a8'}},
   GORGE:  {rows:["...KK...","...EE...","..KEEK..","..KEEK..",".KKEEKK.",".KKKKKK.","KKKEEKKK","KKKKKKKK"], pal:{K:'#4a5568', E:'#e8d9a8'}},
   STORE: {rows:["..KKKK..",".KRRRRK.","KRRRRRRK","KWWWWWWK","KWKWWKWK","KWKWWKWK","KWKDDKWK","KKKKKKKK"], pal:{K:'#1a1410', R:'#c9382c', W:'#f2e4bf', D:'#5b3a29'}},
-  // Fish for river crossings — a clear "water ahead" read, not a mystery blob.
-  FISH: {rows:["........",".KKKKK..","KWWWWWT.","KWEWWWTT","KWWWWWT.",".KKKKK..","........","........"], pal:{K:'#1f4a5c', W:'#5fa8c9', E:'#1a1a1a', T:'#1f4a5c'}},
+  // Water + reeds for river/marsh crossings — reads as "water ahead" at a
+  // glance, and (unlike the old fish icon) has no empty rows at the bottom,
+  // so its art actually reaches down to its own shadow instead of hovering above it.
+  FISH: {rows:["..R..R..",".RR..RR.","..R..R..","WWWWWWWW","wWwWwWwW","WWWWWWWW","wWwWwWwW","WWWWWWWW"], pal:{R:'#3f5c3a', W:'#3f7fa0', w:'#6fb3d1'}},
   // A forked arrow — two paths diverging — instead of an ambiguous "N".
   SIGNPOST: {rows:["K......K",".K....K.","..K..K..","...KK...","...KK...","...KK...","...KK...","..KKKK.."], pal:{K:'#7a5ea8'}},
   // A real paw print (3 toes + pad) instead of an unreadable smudge.
@@ -829,6 +933,8 @@ function makeWalkFrames(member, idx){
   return { rowsA: WALK_BODY.concat(LEGS_A), rowsB: WALK_BODY.concat(LEGS_B), palette };
 }
 const OX_ROWS = ["..AAAA.....",".AAAAAAA...","BBBBBBBBBB.","BBBBBBBBBB.","BBBBBBBBBB.","..K..K..K..","..K..K..K.."];
+const OX_BODY_ROWS = OX_ROWS.slice(0,5);
+const OX_LEGS_B = [".K..K..K...","K..K..K...."];
 const OX_PAL = {A:'#3d2b1f', B:'#8a6a4a', K:'#241a11'};
 
 /* ============================================================
@@ -1236,8 +1342,8 @@ const BODY_SKILLS = {
   'Sexy & She Knows It': {leadership:2},
   'Beach Day': {fishing:2, resist:1},
   'Best Man': {leadership:2, medicine:1},
-  'Sea Captain': {rafting:5, fishing:1},
-  'Admiral': {rafting:4, tinkering:1, fishing:1},
+  'Sea Captain': {rafting:5},
+  'Admiral': {rafting:4, tinkering:1},
   'Bedouin Robe': {scavenging:2, resist:2},
   'Sheikh Robe': {resist:2, scavenging:1},
   'Tyrolean': {tinkering:2, scavenging:1},
@@ -1271,19 +1377,19 @@ const HAND_SKILLS = {
   'Fourche': {scavenging:3, tinkering:1},
   'Sicle': {scavenging:3, hunting:1},
   'Black Sheep': {scavenging:3},
-  'Baby Monkey': {scavenging:2, fishing:2},
-  'Parrot': {scavenging:1, fishing:2},
+  'Baby Monkey': {scavenging:2, fishing:1},
+  'Parrot': {scavenging:1, fishing:1},
   'Mouse': {scavenging:2, tinkering:1},
   'Goat': {scavenging:3},
   'Dog': {hunting:2, scavenging:1},
   'Cat': {scavenging:2, hunting:1},
   'Chicken': {scavenging:3},
-  'Duckling': {fishing:4, scavenging:1},
-  'Frog': {fishing:5},
+  'Duckling': {fishing:2, scavenging:1},
+  'Frog': {fishing:3},
   'Piglet': {scavenging:3},
   'Calf': {scavenging:2, tinkering:1},
   'Amber': {scavenging:3},
-  'Pearl': {fishing:4},
+  'Pearl': {fishing:3},
   'Sapphire': {leadership:3},
   'Emerald': {leadership:2, scavenging:1},
   'Ruby': {leadership:3},
@@ -1291,9 +1397,9 @@ const HAND_SKILLS = {
   'Chalice': {leadership:2, medicine:1},
   'Beads': {scavenging:2},
   'Corona': {medicine:2},
-  'Bottle': {medicine:2, fishing:1},
+  'Bottle': {medicine:2},
   'Cup': {medicine:2},
-  'Popsicle': {medicine:2, fishing:2},
+  'Popsicle': {medicine:2, fishing:1},
   'Blunt': {medicine:2},
   'Whiskey': {medicine:3},
   'Lighter': {tinkering:2, medicine:1},
@@ -1321,15 +1427,15 @@ const HEAD_SKILLS = {
   'Chill Beanie': {resist:2, scavenging:1},
   'Ski Goggles': {resist:2, hunting:1},
   'Raccoon Cap': {resist:2, hunting:2},
-  'Straw Hat': {scavenging:3, hunting:1, fishing:1},
+  'Straw Hat': {scavenging:3, hunting:1},
   'Cowboy Hat': {hunting:2, rafting:2},
-  'Cowgirl Hat': {hunting:2, rafting:1, scavenging:1, fishing:1},
+  'Cowgirl Hat': {hunting:2, rafting:1, scavenging:1},
   'Fedora': {leadership:3},
   'Keffiyeh': {resist:3, scavenging:1},
   'Sheikh': {resist:3, leadership:1},
   'Beekeeper': {medicine:3, resist:1},
   'Scientist': {medicine:4},
-  'Chef': {medicine:2, scavenging:2, fishing:1},
+  'Chef': {medicine:2, scavenging:2},
   'Miner': {tinkering:3, scavenging:1},
   'Painter': {tinkering:3},
   'Postman': {tinkering:3, scavenging:1},
@@ -1337,7 +1443,7 @@ const HEAD_SKILLS = {
   'Nomad': {scavenging:2, tinkering:1},
   'Prisoner': {scavenging:2, leadership:-1},
   'Fox': {scavenging:3, hunting:1},
-  'Diver': {fishing:4, rafting:1},
+  'Diver': {fishing:3, rafting:1},
   'The Judge': {leadership:4},
   'Square Crown': {leadership:4},
   'General': {leadership:3, hunting:1},
@@ -1346,12 +1452,12 @@ const HEAD_SKILLS = {
   'Canadian Police': {leadership:2, scavenging:1},
   'Fez': {leadership:1, medicine:1},
   'Top Hat': {leadership:2},
-  'Pilgrim': {leadership:1, resist:2, fishing:1},
+  'Pilgrim': {leadership:1, resist:2},
   'Pilot': {tinkering:3, resist:1},
   'Prospector': {scavenging:2, tinkering:2},
-  'Farmer': {scavenging:3, hunting:1, fishing:1},
-  'Tyrolean': {tinkering:2, resist:1, fishing:1},
-  'Bear': {hunting:3, resist:1, fishing:1},
+  'Farmer': {scavenging:3, hunting:1},
+  'Tyrolean': {tinkering:2, resist:1},
+  'Bear': {hunting:3, resist:1},
   'Bald I': {resist:1},
   'Bald II': {resist:1},
   'White Braids': {medicine:1},
@@ -1366,17 +1472,17 @@ const HEAD_SKILLS = {
 };
 
 const EYES_SKILLS = {
-  'Awake': {hunting:2, fishing:2},
-  'Sus': {scavenging:2, hunting:1, fishing:1},
-  'Cat': {fishing:3, hunting:1},
+  'Awake': {hunting:2, fishing:1},
+  'Sus': {scavenging:2, hunting:1},
+  'Cat': {fishing:2, hunting:1},
   'Dove': {medicine:2},
   'Monocle': {leadership:3},
-  'Gold Sunnies': {fishing:3},
-  'Victorian Sunnies': {fishing:3, leadership:1},
-  'Squint': {hunting:2, fishing:3},
+  'Gold Sunnies': {fishing:2},
+  'Victorian Sunnies': {fishing:2, leadership:1},
+  'Squint': {hunting:2, fishing:1},
   'Doubtful': {scavenging:1, resist:1},
-  'Wide Green': {fishing:3, hunting:1},
-  'Deep Blue': {fishing:3, hunting:1},
+  'Wide Green': {fishing:2, hunting:1},
+  'Deep Blue': {fishing:2, hunting:1},
   'Scowl': {hunting:2},
   'Dead': {hunting:-1, fishing:-1},
   'Blind': {hunting:-2, fishing:-2},
@@ -1407,8 +1513,8 @@ const EYES_SKILLS = {
   'Nomad': {scavenging:2, tinkering:1},
   'Vert': {scavenging:1, resist:1},
   'Tiny': {scavenging:1},
-  'Large Teal': {resist:1, rafting:1, fishing:1},
-  'Blue': {resist:1, fishing:2},
+  'Large Teal': {resist:1, rafting:1},
+  'Blue': {resist:1, fishing:1},
 };
 
 const FACE_SKILLS = {
@@ -1442,9 +1548,9 @@ const FACE_SKILLS = {
   'Real Man Stache': {hunting:2},
   'Mutton Chops': {hunting:2},
   'White Goatie': {medicine:2},
-  'Short-White Beard': {medicine:2, fishing:1},
-  'Old and Gray': {medicine:3, fishing:2},
-  'Grey Burns': {medicine:3, fishing:2},
+  'Short-White Beard': {medicine:2},
+  'Old and Gray': {medicine:3},
+  'Grey Burns': {medicine:3},
   'Prospector': {scavenging:2, tinkering:2},
   'Prisoner': {scavenging:2, leadership:-1},
   'Bandit': {scavenging:2, leadership:-1},
@@ -1458,7 +1564,7 @@ const FACE_SKILLS = {
 
 const BIOME_SKILLS = {
   'Prairie': {scavenging:2},
-  'Canyon': {resist:2, rafting:1, fishing:1},
+  'Canyon': {resist:2, rafting:1},
   'Factory': {tinkering:2},
   'Welcome': {leadership:1},
   'Homestead': {hunting:1, scavenging:1, fishing:1, rafting:1, tinkering:1, medicine:1, leadership:1},
@@ -1586,7 +1692,7 @@ async function connectWallet(){
     await provider.send("eth_requestAccounts", []);
     const signer = provider.getSigner();
     const address = await signer.getAddress();
-    if(playerProfile){ playerProfile.wallet_address = address; saveProfile(); }
+    if(playerProfile){ playerProfile.wallet_address = address; await saveProfile(); }
     await loadWalletNFTs(address, provider);
   }catch(err){
     console.error(err);
@@ -1727,7 +1833,7 @@ async function saveProfile(){
   const client = getSupabase();
   if(!client) return;
   try{
-    await client.from('player_profiles').update({
+    const { error } = await client.from('player_profiles').update({
       trail_points: playerProfile.trail_points, perks_unlocked: playerProfile.perks_unlocked,
       active_route: playerProfile.active_route, routes_unlocked: playerProfile.routes_unlocked,
       quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
@@ -1743,7 +1849,13 @@ async function saveProfile(){
       lifetime_rivers_crossed: playerProfile.lifetime_rivers_crossed, lifetime_legendary_encounters: playerProfile.lifetime_legendary_encounters,
       bestiary_fish: playerProfile.bestiary_fish, bestiary_animals: playerProfile.bestiary_animals,
     }).eq('user_key', currentUser.email);
-  }catch(e){ console.warn('Could not save profile to Supabase', e); }
+    // Supabase does NOT throw on API-level failures (RLS denial, bad column,
+    // constraint violation, etc.) — it resolves normally with an `error`
+    // object instead. Skipping this check means saves can fail 100% of the
+    // time with zero visibility, which is exactly the kind of silent bug
+    // that would look like "my wallet/progress never actually saves."
+    if(error){ console.error('Profile save was rejected by Supabase:', error.message, error); }
+  }catch(e){ console.warn('Could not save profile to Supabase (network/client error)', e); }
 }
 async function completeQuest(key, reward){
   if(!playerProfile || playerProfile[key]) return;
@@ -2097,6 +2209,12 @@ function confirmUsername(){
   showUserBadge();
   goToHome();
 }
+// Hardcoded to your real deployed URL so magic links never accidentally
+// point at localhost or a stray preview URL. Update this if your production
+// domain changes, and make sure it's also added under Supabase dashboard ->
+// Authentication -> URL Configuration -> Redirect URLs.
+const SITE_URL = "https://wagmi-trail.vercel.app/";
+
 async function sendMagicLink(){
   const emailInput = document.getElementById('email-input');
   const statusEl = document.getElementById('email-login-status');
@@ -2104,9 +2222,18 @@ async function sendMagicLink(){
   if(!email || !email.includes('@')){ statusEl.textContent = 'Enter a valid email address.'; return; }
   const client = getSupabase();
   if(!client){ statusEl.textContent = "Email sign-in isn't available right now — try Google or Guest below."; return; }
+  const isLocalHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+  if(SITE_URL.indexOf('YOUR-PRODUCTION-DOMAIN')>=0){
+    statusEl.textContent = 'SITE_URL is still a placeholder in the code — set it to your real deployed URL before testing email sign-in.';
+    return;
+  }
+  if(isLocalHost){
+    statusEl.textContent = "You're on localhost — email links always point to your production URL, so this won't sign you back in here. Test this flow on the deployed site instead.";
+    return;
+  }
   statusEl.textContent = 'Sending your login link…';
   try{
-    const { error } = await client.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
+    const { error } = await client.auth.signInWithOtp({ email, options:{ emailRedirectTo: SITE_URL } });
     if(error){ statusEl.textContent = "Couldn't send the link: " + error.message; return; }
     statusEl.textContent = `Check ${email} for a login link, then come back here — clicking it signs you in automatically.`;
   }catch(e){
@@ -2293,6 +2420,34 @@ function show(id){
 /* ============================================================
    TRAVELING SCENE — animated wagon, oxen, and walking party
    ============================================================ */
+let sceneAnnounceEls = null;
+function getSceneAnnounceEls(){
+  if(!sceneAnnounceEls){
+    sceneAnnounceEls = {
+      wrap: document.getElementById('scene-announce'),
+      icon: document.getElementById('scene-announce-icon'),
+      text: document.getElementById('scene-announce-text'),
+    };
+  }
+  return sceneAnnounceEls;
+}
+// The on-scene banner is the one thing pointed straight at what you're already
+// looking at when the journey stops — the log entry underneath the buttons
+// says the same thing, but it's easy to miss since nothing draws your eye to it.
+function showSceneAnnouncement(text, iconKey){
+  const els = getSceneAnnounceEls();
+  if(!els.wrap) return;
+  if(iconKey && SPRITE_URLS[iconKey]){ els.icon.src = SPRITE_URLS[iconKey]; els.icon.classList.remove('hide'); }
+  else { els.icon.classList.add('hide'); }
+  els.text.textContent = text;
+  els.wrap.classList.add('show');
+}
+function hideSceneAnnouncement(){
+  const els = getSceneAnnounceEls();
+  if(!els.wrap) return;
+  els.wrap.classList.remove('show');
+}
+
 let sceneRAF = null, sceneTime = 0, sceneGroundOffset = 0;
 function startSceneLoop(){
   cancelAnimationFrame(sceneRAF);
@@ -2306,6 +2461,7 @@ function startSceneLoop(){
     const avgHealth = aliveNow.length ? aliveNow.reduce((s,m)=>s+m.health,0)/aliveNow.length : 100;
     const weary = avgHealth < 40;
     sceneGroundOffset += (traveling ? 1.7 : 0.9) * paceMult * (weary ? 0.65 : 1);
+    if(traveling || isAnyModalOpen()) hideSceneAnnouncement();
     drawTravelScene(traveling, weary);
     sceneRAF = requestAnimationFrame(loop);
   };
@@ -2313,68 +2469,118 @@ function startSceneLoop(){
 }
 function stopSceneLoop(){ cancelAnimationFrame(sceneRAF); }
 
+// Draws a sprite "planted" at a fixed ground contact point: the shadow stays
+// pinned at footY, and shrinks/fades as the sprite bobs upward, growing back
+// as it settles. A fixed-size shadow under a bobbing sprite reads as "the
+// shadow and the sprite are unrelated" (i.e. floating) — a shadow that
+// reacts to the bob reads as an intentional hop/step instead.
+function drawGrounded(ctx, rows, pal, cx, footY, pixel, bobOffset, shadowRx, alpha){
+  const spriteH = rows.length*pixel;
+  const lift = Math.max(0, -bobOffset);
+  const liftFrac = Math.min(1, lift/6);
+  const rx = shadowRx * (1 - liftFrac*0.35);
+  ctx.save();
+  if(typeof alpha==='number') ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(20,16,10,.28)';
+  ctx.beginPath(); ctx.ellipse(cx, footY+1, rx, rx*0.34, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  if(typeof alpha==='number') ctx.globalAlpha = alpha;
+  drawSpriteCentered(ctx, rows, pal, cx, footY - spriteH/2 + bobOffset, pixel);
+  ctx.restore();
+}
+
 function drawTravelScene(traveling, weary){
   const canvas = document.getElementById('travelScene');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const mode = state ? state.sceneMode : 'trail';
+  const groundY = h*0.66;               // sky/hills give way to the road here
+  const footY = groundY + (h-groundY)*0.42; // where wheels/hooves/feet actually touch dirt
+  const bob = i => Math.sin(sceneTime*0.15 + i*0.7) * (traveling?4:1.3) * (weary?0.6:1);
 
-  // ---- sky + base ground, tinted per scene mode, shifted by day-of-trail cycle ----
+  // ---- sky, tinted per scene mode, drifting through a day/night cycle ----
   const skyTop = {trail:'#bfe3e0', river:'#a9d4e6', town:'#e8dcc0', hazard:'#8a7360', plains:'#d7ecc9', fork:'#c9dfd0', legendary:'#efe0a8'}[mode] || '#bfe3e0';
   const skyBot = {trail:'#eaf6e6', river:'#eaf6f0', town:'#f3ead2', hazard:'#b89a7c', plains:'#f2f8e6', fork:'#eaf6e6', legendary:'#fff3c4'}[mode] || '#eaf6e6';
-  const dayPhase = state ? (state.day % 8) : 0; // slow drift through the trail day, purely atmospheric
-  const dayTint = dayPhase<2 ? 'rgba(255,200,150,.10)' : dayPhase>5 ? 'rgba(120,140,200,.10)' : 'rgba(0,0,0,0)';
-  const grad = ctx.createLinearGradient(0,0,0,h*0.62);
+  const dayPhase = state ? (state.day % 8) : 0; // 0..7, purely atmospheric drift through the trail's "day"
+  const isDawn = dayPhase<2, isDusk = dayPhase>5;
+  const dayTint = isDawn ? 'rgba(255,200,150,.10)' : isDusk ? 'rgba(120,140,200,.10)' : 'rgba(0,0,0,0)';
+  const grad = ctx.createLinearGradient(0,0,0,groundY);
   grad.addColorStop(0,skyTop); grad.addColorStop(1,skyBot);
-  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h*0.62);
-  if(dayTint!=='rgba(0,0,0,0)'){ ctx.fillStyle = dayTint; ctx.fillRect(0,0,w,h*0.62); }
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,groundY);
+  if(dayTint!=='rgba(0,0,0,0)'){ ctx.fillStyle = dayTint; ctx.fillRect(0,0,w,groundY); }
 
-  ctx.fillStyle = mode==='hazard' ? '#6b5a46' : '#a9cf8f';
-  ctx.beginPath(); ctx.moveTo(0,h*0.6);
-  for(let x=0;x<=w;x+=30){
-    const hillOff = (sceneGroundOffset*0.15)%60;
-    const y = h*0.5 + Math.sin((x+hillOff)*0.03)*8;
-    ctx.lineTo(x,y);
+  // ---- sun / moon + stars, so the day-cycle tint has something to hang on ----
+  if(isDawn){
+    ctx.fillStyle = 'rgba(255,190,120,.55)';
+    ctx.beginPath(); ctx.arc(w*0.14, h*0.30, h*0.11, 0, Math.PI*2); ctx.fill();
+  } else if(isDusk){
+    ctx.fillStyle = 'rgba(225,228,242,.7)';
+    ctx.beginPath(); ctx.arc(w*0.85, h*0.18, h*0.075, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for(let i=0;i<6;i++){ const sx=(i*97+40)%w, sy=h*0.10+(i%3)*11; ctx.beginPath(); ctx.arc(sx,sy,1.2,0,Math.PI*2); ctx.fill(); }
+  } else {
+    ctx.fillStyle = 'rgba(255,250,220,.35)';
+    ctx.beginPath(); ctx.arc(w*0.82, h*0.15, h*0.06, 0, Math.PI*2); ctx.fill();
   }
-  ctx.lineTo(w,h*0.62); ctx.lineTo(0,h*0.62); ctx.closePath(); ctx.fill();
 
+  // ---- distant mountains (slow parallax) ----
+  ctx.fillStyle = 'rgba(94,112,122,.22)';
+  ctx.beginPath(); ctx.moveTo(0,groundY);
+  const mOff = (sceneGroundOffset*0.04)%80;
+  for(let x=0;x<=w;x+=40){ ctx.lineTo(x, h*0.40 + Math.sin((x+mOff)*0.017)*10 + Math.cos((x+mOff)*0.045)*6); }
+  ctx.lineTo(w,groundY); ctx.lineTo(0,groundY); ctx.closePath(); ctx.fill();
+
+  // ---- mid hills (faster parallax) ----
+  ctx.fillStyle = mode==='hazard' ? '#6b5a46' : '#a9cf8f';
+  ctx.beginPath(); ctx.moveTo(0,groundY);
+  const hillOff = (sceneGroundOffset*0.15)%60;
+  for(let x=0;x<=w;x+=24){ ctx.lineTo(x, h*0.52 + Math.sin((x+hillOff)*0.03)*12); }
+  ctx.lineTo(w,groundY); ctx.lineTo(0,groundY); ctx.closePath(); ctx.fill();
+
+  // ---- ground plane ----
   const groundColor = {trail:'#7a9c5e', river:'#4a90a4', town:'#a68a5c', hazard:'#5c4a38', plains:'#8fb56b', fork:'#7a9c5e', legendary:'#c9a227'}[mode] || '#7a9c5e';
-  ctx.fillStyle = groundColor; ctx.fillRect(0,h*0.6,w,h*0.4);
+  ctx.fillStyle = groundColor; ctx.fillRect(0,groundY,w,h-groundY);
 
-  // ---- scene-specific storytelling elements ----
+  // wheel ruts scrolling at full speed — the strongest "we are moving" cue
+  ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 2; ctx.setLineDash([14,10]);
+  [0.32,0.62].forEach(frac=>{
+    const ry = groundY + (h-groundY)*frac;
+    ctx.lineDashOffset = -sceneGroundOffset*1.4;
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.lineTo(w,ry); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // ---- scene-specific storytelling elements, all anchored to groundY now ----
   if(mode==='river'){
-    // water ripple bands
     ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth=2;
     for(let i=0;i<4;i++){
-      const ry = h*0.68 + i*10;
+      const ry = groundY + (h-groundY)*0.22 + i*11;
       ctx.beginPath();
       for(let x=0;x<w;x+=8){ const yy = ry + Math.sin((x+sceneGroundOffset*2+i*20)*0.08)*2; x===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); }
       ctx.stroke();
     }
   } else if(mode==='town'){
-    // building silhouettes in the background
     ctx.fillStyle = '#5b3a29';
-    [ [40,50],[110,60],[520,55],[580,45] ].forEach(([bx,bw])=>{
-      ctx.fillRect(bx, h*0.6-34, bw*0.6, 34);
-      ctx.fillStyle = '#b23a2f'; ctx.fillRect(bx, h*0.6-40, bw*0.6, 8); ctx.fillStyle = '#5b3a29';
+    [ [40,50,46],[110,60,58],[500,55,50],[572,45,64] ].forEach(([bx,bw,bh])=>{
+      ctx.fillRect(bx, groundY-bh, bw*0.6, bh);
+      ctx.fillStyle = '#b23a2f'; ctx.fillRect(bx, groundY-bh-8, bw*0.6, 8); ctx.fillStyle = '#5b3a29';
     });
   } else if(mode==='hazard'){
-    // dust particles
     ctx.fillStyle = 'rgba(160,120,80,.35)';
     for(let i=0;i<10;i++){
       const px = (sceneGroundOffset*3 + i*70) % (w+60) - 30;
-      const py = h*0.35 + (i%4)*14;
+      const py = h*0.32 + (i%4)*16;
       ctx.beginPath(); ctx.arc(px,py,10,0,Math.PI*2); ctx.fill();
     }
   } else if(mode==='plains'){
-    // distant grazing animal silhouette
-    ctx.fillStyle = 'rgba(90,70,50,.5)';
-    drawSpriteCentered(ctx, DEER_ROWS, {A:'rgba(90,70,50,.5)',B:'rgba(90,70,50,.5)',K:'rgba(90,70,50,.5)'}, w-80, h*0.55, 3);
+    const deerFoot = groundY + (h-groundY)*0.14;
+    drawGrounded(ctx, DEER_ROWS, {A:'#5a4632',B:'#5a4632',K:'#2b2318'}, w-90, deerFoot, 3.4, 0, 11, 0.55);
   } else if(mode==='fork'){
     ctx.strokeStyle = 'rgba(90,70,50,.5)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(w*0.5,h*0.62); ctx.lineTo(w*0.25,h); ctx.moveTo(w*0.5,h*0.62); ctx.lineTo(w*0.75,h); ctx.stroke();
-    drawSpriteCentered(ctx, ICONS.SIGNPOST.rows, ICONS.SIGNPOST.pal, w*0.5, h*0.5, 3);
+    ctx.beginPath(); ctx.moveTo(w*0.5,groundY); ctx.lineTo(w*0.25,h); ctx.moveTo(w*0.5,groundY); ctx.lineTo(w*0.75,h); ctx.stroke();
+    drawGrounded(ctx, ICONS.SIGNPOST.rows, ICONS.SIGNPOST.pal, w*0.5, groundY+6, 3.4, 0, 9);
   } else if(mode==='legendary'){
     ctx.fillStyle = 'rgba(255,220,120,.25)'; ctx.fillRect(0,0,w,h);
     for(let i=0;i<8;i++){
@@ -2385,54 +2591,79 @@ function drawTravelScene(traveling, weary){
     }
   }
 
-  ctx.fillStyle = 'rgba(0,0,0,0.028)';
-  const stripe = 46;
-  for(let x=-stripe+(sceneGroundOffset%stripe); x<w; x+=stripe){ ctx.fillRect(x, h*0.6, stripe*0.4, h*0.4); }
-
-  const bob = i => Math.sin(sceneTime*0.15 + i*0.7) * (traveling?4:1.3) * (weary?0.6:1);
   if(weary){
     ctx.fillStyle = 'rgba(140,120,95,.22)';
     for(let i=0;i<5;i++){
       const dx = (sceneGroundOffset*1.2 + i*26) % (w*0.4);
-      ctx.beginPath(); ctx.arc(20+dx, h*0.86, 5+i%2*2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(20+dx, h*0.9, 5+i%2*2, 0, Math.PI*2); ctx.fill();
     }
   }
 
-  // ---- wagon + oxen, kept to the left half so the right side stays
-  // clear for the "what's coming" horizon preview below ----
-  const wagonPal = currentWagonPalette();
-  const wagonX = 150, wagonY = h*0.68+bob(5);
-  drawSpriteCentered(ctx, WAGON_ROWS, wagonPal, wagonX, wagonY, 5);
-  const wagonAccessory = WAGON_ACCESSORY_SPRITES[(playerProfile && playerProfile.wagon_accessory) || 'none'];
-  if(wagonAccessory) drawSpriteCentered(ctx, wagonAccessory.rows, wagonAccessory.pal, wagonX+2, wagonY-42, 5);
-  const inTrailOxenCount = 2 + perkOxenBonus();
-  let oxX = 276;
-  for(let oi=0; oi<inTrailOxenCount; oi++){ drawSpriteCentered(ctx, OX_ROWS, OX_PAL, oxX, h*0.8+bob(6+oi), 4); oxX += 34; }
+  // ---- walking party, trailing beside/behind the wagon. Uses each member's
+  // real walk sprite (their actual hat/outfit colors) — this data already
+  // existed for every roster member and just wasn't wired into the scene. ----
+  const aliveMembers = state ? state.members.filter(m=>m.alive) : [];
+  aliveMembers.slice(0,4).forEach((m,i)=>{
+    if(!m.walk) return;
+    const wx = 100 - i*28;
+    const frameB = Math.floor(sceneTime*0.15 + i*1.3)%2===0;
+    const rows = frameB ? m.walk.rowsB : m.walk.rowsA;
+    drawGrounded(ctx, rows, m.walk.palette, wx, footY, 4, bob(10+i)*0.4, 8);
+  });
 
-  // ---- horizon preview: the next landmark drifts into view on the
-  // right as you approach, and grows clearer the closer you get ----
+  // ---- wagon + oxen (oxen lead, pulling forward in the direction of travel) ----
+  const wagonPal = currentWagonPalette();
+  const wagonX = 150;
+  const wagonSway = bob(5)*0.3; // a light suspension jostle, not a hop
+  const wagonSpriteH = WAGON_ROWS.length*6;
+  const wagonCy = footY - wagonSpriteH/2 + wagonSway;
+  const wheelSpinB = Math.floor(sceneGroundOffset/12)%2===1;
+  const wagonRowsNow = wheelSpinB ? WAGON_BODY_ROWS.concat(WAGON_WHEELS_B) : WAGON_ROWS;
+  // two shadows, one per wheel, instead of one blob under the whole chassis —
+  // this is what actually sells "wheels touching the ground"
+  [-33,27].forEach(dx=>{
+    ctx.save(); ctx.fillStyle='rgba(20,16,10,.3)';
+    ctx.beginPath(); ctx.ellipse(wagonX+dx, footY+1, 13, 4.4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+  drawSpriteCentered(ctx, wagonRowsNow, wagonPal, wagonX, wagonCy, 6);
+  const wagonAccessory = WAGON_ACCESSORY_SPRITES[(playerProfile && playerProfile.wagon_accessory) || 'none'];
+  if(wagonAccessory) drawSpriteCentered(ctx, wagonAccessory.rows, wagonAccessory.pal, wagonX+2, wagonCy-44, 6);
+  const inTrailOxenCount = 2 + perkOxenBonus();
+  let oxX = 300;
+  for(let oi=0; oi<inTrailOxenCount; oi++){
+    const legB = Math.floor(sceneGroundOffset/10 + oi*1.7)%2===1;
+    const rowsNow = legB ? OX_BODY_ROWS.concat(OX_LEGS_B) : OX_ROWS;
+    // no vertical bob at all here — the stepping legs alone read as "walking";
+    // adding a body-bob on top of that is what read as "bouncing" before
+    drawGrounded(ctx, rowsNow, OX_PAL, oxX, footY, 5, 0, 14);
+    oxX += 40;
+  }
+
+  // ---- horizon preview: the next landmark rises out of the horizon as you
+  // approach — always foot-planted on the ground plane, never floating loose
+  // in open sky, and grows/lowers into view the closer you get ----
   if(state && state.passedLandmarks<LANDMARKS.length){
     const lm = LANDMARKS[state.passedLandmarks];
     const milesToGo = lm.mile - state.distance;
     const previewRange = 260;
     if(milesToGo>0 && milesToGo<previewRange){
       const t = 1 - (milesToGo/previewRange); // 0 = just appeared, 1 = about to arrive
-      const px = (w-40) - t*140; // starts near the right edge, drifts left as it nears
-      const py = h*0.5 - t*10;
-      const scale = 2.2 + t*3.6;
-      const alpha = 0.3 + t*0.7;
-      ctx.save();
-      ctx.globalAlpha = alpha;
+      const px = (w-50) - t*150;
+      const iconFootY = groundY + t*(h-groundY)*0.5;
+      const scale = 2 + t*3.2;
+      const alpha = 0.28 + t*0.72;
       const icon = ICONS[lm.icon];
-      if(icon) drawSpriteCentered(ctx, icon.rows, icon.pal, px, py, scale);
-      ctx.restore();
+      if(icon){
+        drawGrounded(ctx, icon.rows, icon.pal, px, iconFootY, scale, 0, 5+t*6, alpha);
+      }
       if(t>0.4){
         ctx.fillStyle = 'rgba(255,253,246,.85)'; ctx.strokeStyle='rgba(43,35,24,.15)'; ctx.lineWidth=1;
         const label = `${lm.name} — ${Math.max(0,Math.round(milesToGo))}mi`;
         ctx.font = '9px monospace';
         const tw = ctx.measureText(label).width;
         const boxX = Math.max(6, Math.min(w-tw-18, px - tw/2));
-        const boxY = py+scale*8+4;
+        const boxY = iconFootY+6;
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(boxX, boxY, tw+12, 14, 6) : ctx.rect(boxX, boxY, tw+12, 14);
         ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#2b2318'; ctx.textAlign='left';
@@ -2826,6 +3057,13 @@ function advanceOneDay(){
   if(opportunityPause){
     state.autoTravel = false;
     logMsg(`The journey pauses here — Forage/Fish now, or hit ▶ Resume Journey to keep moving.`, 'good');
+    if(enteredZone && enteredFishWindow){
+      showSceneAnnouncement(`You found a forage spot and a fishing hole — Forage or Fish before moving on.`, 'BASKET');
+    } else if(enteredZone){
+      showSceneAnnouncement(`You found a forage spot — ${enteredZone.name}. Forage before moving on.`, 'BASKET');
+    } else if(enteredFishWindow){
+      showSceneAnnouncement(`You found a fishing hole — ${enteredFishWindow.name} is close. Fish before moving on.`, 'FISH');
+    }
   }
 
   const passedGraves = passedGravestonesThisStretch(prevDistance, state.distance);
@@ -4062,16 +4300,8 @@ function endRun(success){
   // miles — otherwise a longer route always outscores a shorter one on
   // distance alone regardless of difficulty. Route difficulty is instead
   // rewarded explicitly via routeMult (harder/shorter routes score higher).
-  const distanceMult = 4000/TRAIL_GOAL;
   const distancePts = Math.floor((Math.min(state.distance,TRAIL_GOAL)/TRAIL_GOAL) * 4000);
-  // Time bonus benchmark scales with route length too — 160 days was tuned
-  // for the 2,000mi default route, so shorter/longer routes get a
-  // proportionally easier/harder clock instead of double-stacking with
-  // routeMult in the same direction (shorter routes are already rewarded
-  // via a higher routeMult; they shouldn't ALSO get an easier time bonus
-  // on top of that, and vice versa for longer routes).
-  const timeBenchmarkDays = Math.round(160 * (TRAIL_GOAL/2000));
-  const timePts = success ? Math.max(0, Math.round((timeBenchmarkDays-state.day)*3)) : 0;
+  const timePts = success ? Math.max(0, Math.round((160-state.day)*3)) : 0;
   const foodPts = Math.floor(state.food);
   const cashPts = Math.floor(state.cash);
   const healthPts = Math.floor(healthSum*3);
@@ -4083,8 +4313,8 @@ function endRun(success){
   document.getElementById('end-title').textContent = success ? `You reached Diamond Acres with ${survivors.length}/4 survivors` : `The party was lost ${Math.floor(state.distance)}mi from Diamond Acres`;
   document.getElementById('final-score-num').textContent = total.toLocaleString();
   document.getElementById('score-breakdown').innerHTML = `
-    <div class="stat-box"><div class="label">Distance Bonus</div><div class="value">${distancePts}</div><div class="muted" style="font-size:9.5px;">${Math.floor(Math.min(state.distance,TRAIL_GOAL))}mi × ${distanceMult.toFixed(2)}</div></div>
-    <div class="stat-box"><div class="label">Time Bonus</div><div class="value">${timePts}</div><div class="muted" style="font-size:9.5px;">beat day ${timeBenchmarkDays}</div></div>
+    <div class="stat-box"><div class="label">Distance Bonus</div><div class="value">${distancePts}</div><div class="muted" style="font-size:9.5px;">${Math.floor(Math.min(state.distance,TRAIL_GOAL))}mi × 2</div></div>
+    <div class="stat-box"><div class="label">Time Bonus</div><div class="value">${timePts}</div></div>
     <div class="stat-box"><div class="label">Food Left</div><div class="value">${foodPts}</div></div>
     <div class="stat-box"><div class="label">Cash Left</div><div class="value">${cashPts}</div></div>
     <div class="stat-box"><div class="label">Party Health Bonus</div><div class="value">${healthPts}</div><div class="muted" style="font-size:9.5px;">${Math.floor(healthSum)} total health × 3</div></div>
