@@ -1586,7 +1586,7 @@ async function connectWallet(){
     await provider.send("eth_requestAccounts", []);
     const signer = provider.getSigner();
     const address = await signer.getAddress();
-    if(playerProfile){ playerProfile.wallet_address = address; saveProfile(); }
+    if(playerProfile){ playerProfile.wallet_address = address; await saveProfile(); }
     await loadWalletNFTs(address, provider);
   }catch(err){
     console.error(err);
@@ -1727,7 +1727,7 @@ async function saveProfile(){
   const client = getSupabase();
   if(!client) return;
   try{
-    await client.from('player_profiles').update({
+    const { error } = await client.from('player_profiles').update({
       trail_points: playerProfile.trail_points, perks_unlocked: playerProfile.perks_unlocked,
       active_route: playerProfile.active_route, routes_unlocked: playerProfile.routes_unlocked,
       quest_town_done: playerProfile.quest_town_done, quest_minigame_done: playerProfile.quest_minigame_done,
@@ -1743,7 +1743,13 @@ async function saveProfile(){
       lifetime_rivers_crossed: playerProfile.lifetime_rivers_crossed, lifetime_legendary_encounters: playerProfile.lifetime_legendary_encounters,
       bestiary_fish: playerProfile.bestiary_fish, bestiary_animals: playerProfile.bestiary_animals,
     }).eq('user_key', currentUser.email);
-  }catch(e){ console.warn('Could not save profile to Supabase', e); }
+    // Supabase does NOT throw on API-level failures (RLS denial, bad column,
+    // constraint violation, etc.) — it resolves normally with an `error`
+    // object instead. Skipping this check means saves can fail 100% of the
+    // time with zero visibility, which is exactly the kind of silent bug
+    // that would look like "my wallet/progress never actually saves."
+    if(error){ console.error('Profile save was rejected by Supabase:', error.message, error); }
+  }catch(e){ console.warn('Could not save profile to Supabase (network/client error)', e); }
 }
 async function completeQuest(key, reward){
   if(!playerProfile || playerProfile[key]) return;
